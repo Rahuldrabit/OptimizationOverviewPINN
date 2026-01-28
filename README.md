@@ -2,7 +2,7 @@
 
 Complete Physics-Informed Neural Network (PINN) benchmark suite with hyperparameter optimization using Genetic Algorithm (GA), Particle Swarm Optimization (PSO), and Ant Colony Optimization (ACO).
 
-## 🔥 NEW: Organized Structure + All PDE Benchmarks
+## 🔥  All PDE Benchmarks
 
 ### Implemented Benchmarks
 - **ODE**: Exponential decay (analytic solution available)
@@ -207,4 +207,3 @@ outputs/
 3. **Compare all benchmarks**: `python scripts\run_all_benchmarks.py`
 4. **Try HPO**: `python scripts\run_ga.py ode`
 
-The ODE benchmark is fully functional. Other PDE benchmarks return placeholder metrics but can be extended with full PINN training implementations as needed.
