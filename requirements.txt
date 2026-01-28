@@ -1,0 +1,7 @@
+numpy>=1.24
+matplotlib>=3.7
+tqdm>=4.66
+pygad>=3.3
+pyswarm>=0.6
+# PyTorch: on Windows you may prefer installing from https://pytorch.org/get-started/locally/
+# torch>=2.1
