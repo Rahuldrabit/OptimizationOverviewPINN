@@ -1,209 +1,191 @@
-# PINN Benchmarks + HPO (Reorganized)
+# PINN Benchmarks + Hyperparameter Optimization (HPO) Suite
 
-Complete Physics-Informed Neural Network (PINN) benchmark suite with hyperparameter optimization using Genetic Algorithm (GA), Particle Swarm Optimization (PSO), and Ant Colony Optimization (ACO).
+Complete Physics-Informed Neural Network (PINN) benchmark and Hyperparameter Optimization framework comparing **Genetic Algorithms (GA)**, **Particle Swarm Optimization (PSO)**, **Gravitational Search Algorithm (GSA)**, **Ant Colony Optimization (ACO)**, **Fuzzy-Adaptive Search**, and **Hybrid Metaheuristics**.
 
-## 🔥  All PDE Benchmarks
+## 🏛️ System Architecture
 
-### Implemented Benchmarks
-- **ODE**: Exponential decay (analytic solution available)
-- **Burgers 1D**: Viscous Burgers equation with shock formation
-- **Heat Equation**: 1D diffusion with analytic solution
-- **Allen-Cahn**: Phase-field equation with interface dynamics
-- **Reaction-Diffusion**: Gray-Scott system (pattern formation)
-- **2D Navier-Stokes**: Lid-driven cavity flow
-- **Wave Equation**: 1D hyperbolic PDE with analytic solution
-- **Helmholtz**: Elliptic PDE with manufactured solution
+```mermaid
+graph TD
+    subgraph "Standalone Optimizers"
+        GA["GA (Genetic Algorithm)"]
+        PSO["PSO (Particle Swarm)"]
+        ACO["ACO (Ant Colony / ACOR)"]
+        GSA["GSA (Gravitational Search)"]
+    end
 
-### Hyperparameters Optimized
-- **Learning rate** (log-scale: 1e-4 to 5e-2)
-- **Optimizer**: Adam, AdamW, L-BFGS
-- **Network depth**: 1-6 hidden layers
-- **Network width**: 8-256 neurons per layer
-- **Activation**: tanh, sine, swish (SiLU)
-- **Physics vs BC loss weights**
-- **Collocation point count**: 64-1024
+    subgraph "Hybrid Algorithms"
+        GAPSO["GA-PSO Hybrid"]
+        PSOGSA["PSO-GSA Hybrid"]
+        ACOGA["ACO-GA Hybrid"]
+    end
+
+    subgraph "Fuzzy-Enhanced"
+        FLC["Fuzzy Logic Controller (Mamdani)"]
+        FPSO["Fuzzy-PSO"]
+        FGA["Fuzzy-GA"]
+        FACO["Fuzzy-ACO"]
+    end
+
+    subgraph "Comparison & Reporting"
+        CMP["Comparison Engine (Config Search)"]
+        RPT["Report & Plot Generator"]
+    end
+
+    GA --> GAPSO
+    PSO --> GAPSO
+    PSO --> PSOGSA
+    GSA --> PSOGSA
+    ACO --> ACOGA
+    GA --> ACOGA
+
+    FLC --> FPSO
+    FLC --> FGA
+    FLC --> FACO
+    PSO --> FPSO
+    GA --> FGA
+    ACO --> FACO
+
+    GA --> CMP
+    PSO --> CMP
+    ACO --> CMP
+    GSA --> CMP
+    GAPSO --> CMP
+    PSOGSA --> CMP
+    ACOGA --> CMP
+    FPSO --> CMP
+    FGA --> CMP
+    FACO --> CMP
+
+    CMP --> RPT
+```
+
+---
+
+## 🔥 Evaluated PDE Benchmarks
+
+- **ODE**: Exponential decay $\frac{dy}{dt} = -y$, $y(0) = 1$ (analytic solution: $y = e^{-t}$)
+- **Burgers 1D**: Viscous Burgers equation $u_t + u u_x = \nu u_{xx}$ with shock dynamics
+- **Heat Equation**: 1D diffusion $u_t = \alpha u_{xx}$ with Dirichlet boundaries
+- **Allen-Cahn**: Phase-field equation $u_t = D u_{xx} + u - u^3$
+- **Reaction-Diffusion**: Gray-Scott system (2D pattern formation)
+- **2D Navier-Stokes**: Lid-driven cavity incompressible flow
+- **Wave Equation**: 1D hyperbolic PDE $u_{tt} = c^2 u_{xx}$
+- **Helmholtz**: Elliptic PDE $\nabla^2 u + k^2 u = f(x,y)$
+
+---
+
+## 🎯 8-Dimensional Hyperparameter Search Space
+
+| Hyperparameter | Range / Options | Encoding |
+| :--- | :--- | :--- |
+| **Network Depth** | 1 to 6 hidden layers | Integer |
+| **Network Width** | 8 to 256 neurons/layer | Integer |
+| **Activation Function** | `tanh`, `sine` (Siren), `swish` (SiLU) | Categorical |
+| **Optimizer** | `Adam`, `AdamW`, `L-BFGS` | Categorical |
+| **Learning Rate** | $10^{-4}$ to $5 \times 10^{-2}$ | Continuous ($\log_{10}$) |
+| **Physics Loss Weight** ($w_{phys}$) | 0.1 to 10.0 | Continuous |
+| **Initial/Boundary Weight** ($w_{ic}$) | 0.1 to 50.0 | Continuous |
+| **Collocation Points** | 64 to 1024 points | Integer |
+
+---
+
+## 🔬 Algorithm Categories
+
+### 1. Standalone Metaheuristics
+- **GA (Genetic Algorithm)**: Tournament selection, uniform crossover, random mutation, elitism.
+- **PSO (Particle Swarm Optimization)**: Directional particle velocity updates with cognitive ($c_1$) and social ($c_2$) memory.
+- **ACO (Ant Colony Optimization)**: Continuous ACOR with Gaussian kernel archive sampling.
+- **GSA (Gravitational Search Algorithm)**: Agents attract via Newtonian gravity proportional to fitness masses; gravitational constant $G(t)$ decays over time.
+
+### 2. Fuzzy-Adaptive Search (Fuzzy Logic Controller)
+A Mamdani Fuzzy Inference System dynamically estimates population diversity, improvement rate, and search progress:
+- **Fuzzy-PSO**: Dynamically adapts inertia weight $w(t) \in [0.3, 0.9]$ and social factor $c_2(t) \in [1.0, 2.5]$.
+- **Fuzzy-GA**: Dynamically adjusts mutation rate $p_m(t) \in [0.05, 0.45]$ and crossover rate $p_c(t) \in [0.50, 0.95]$.
+- **Fuzzy-ACO**: Dynamically adjusts dispersion $\zeta(t) \in [0.35, 1.20]$ and Gaussian sharpness $q(t) \in [0.15, 0.80]$.
+
+### 3. Hybrid Metaheuristics
+- **GA-PSO Hybrid**: Alternates between GA evolutionary exploration (crossover & mutation) and PSO particle velocity exploitation.
+- **PSO-GSA Hybrid**: Unified velocity equation $V(t+1) = w V + c_1' r_1 a_{GSA} + c_2' r_2 (g_{best} - X)$ combining gravitational exploration with swarm exploitation (Mirjalili & Hashim).
+- **ACO-GA Hybrid**: Uses ACO continuous archive for global exploration, then injects elite candidates to initialize GA for rapid schema recombination.
+
+---
 
 ## 📁 Project Structure
 
 ```
-src/
-  benchmarks/          # All PDE benchmark implementations
-    ode/              # Exponential decay ODE
-    burgers/          # 1D Burgers equation  
-    heat/             # Heat/diffusion equation
-    allen_cahn/       # Allen-Cahn phase field
-    reaction_diffusion/# Gray-Scott system
-    navier_stokes/    # 2D incompressible flow
-    wave/             # Wave & Helmholtz equations
-  models/             # Neural network architectures
-  training/           # PINN training logic + benchmark factory
-  hpo/               # Hyperparameter optimization methods
-    ga.py            # Genetic Algorithm (PyGAD)
-    pso.py           # Particle Swarm Optimization (PySwarm)
-    aco.py           # Ant Colony Optimization (custom ACOR)
-    search_space.py  # Shared hyperparameter encoding
-  utils.py           # Utilities (seeding, file I/O)
-tests/               # Comprehensive test suite
-scripts/             # Command-line runners
-outputs/             # Results organized by method and benchmark
+d:/OptimizationOverviewPINN/
+├── src/
+│   ├── benchmarks/          # 8 PDE benchmark implementations
+│   ├── models/              # Neural network architectures (MLP, Siren, activations)
+│   ├── training/            # PINN trainer & benchmark factory
+│   ├── hpo/                 # Hyperparameter Optimization methods
+│   │   ├── search_space.py      # 8-dim search space & decoding logic
+│   │   ├── ga.py                # Genetic Algorithm
+│   │   ├── pso.py               # Particle Swarm Optimization
+│   │   ├── aco.py               # Ant Colony Optimization (ACOR)
+│   │   ├── gsa.py               # Gravitational Search Algorithm
+│   │   ├── fuzzy_controller.py  # Mamdani Fuzzy Logic Controller
+│   │   ├── fuzzy_pso.py         # Fuzzy-Adaptive PSO
+│   │   ├── fuzzy_ga.py          # Fuzzy-Adaptive GA
+│   │   ├── fuzzy_aco.py         # Fuzzy-Adaptive ACO
+│   │   ├── hybrid_ga_pso.py     # GA-PSO Hybrid
+│   │   ├── hybrid_pso_gsa.py    # PSO-GSA Hybrid
+│   │   ├── hybrid_aco_ga.py     # ACO-GA Hybrid
+│   │   ├── comparison.py        # Config-style multi-seed search engine
+│   │   └── report_generator.py  # Automated plots & Markdown report builder
+│   └── utils.py             # File I/O and reproducibility utilities
+├── scripts/
+│   ├── run_baseline.py          # Baseline PINN runner
+│   ├── run_all_benchmarks.py    # Run baselines on all 8 PDEs
+│   ├── run_ga.py                # Standalone GA runner
+│   ├── run_pso.py               # Standalone PSO runner
+│   ├── run_aco.py               # Standalone ACO runner
+│   ├── run_gsa.py               # Standalone GSA runner
+│   ├── run_fuzzy.py             # Fuzzy optimizers runner (--method pso/ga/aco/all)
+│   ├── run_hybrids.py           # Hybrid optimizers runner (--method ga_pso/pso_gsa/aco_ga/all)
+│   ├── run_full_comparison.py   # Master benchmark suite & report generator
+│   └── run_tests.py             # Unit test suite
+├── outputs/
+│   ├── comparison/              # Master comparison data, report, and plots
+│   │   ├── plots/               # Convergence, boxplot, radar, heatmap figures
+│   │   ├── hpo_comparison_results.json
+│   │   └── HPO_INVESTIGATION_REPORT.md
+│   └── ...                      # Individual optimizer results
+└── tests/                       # Comprehensive unit & integration tests
 ```
 
-## 🚀 Setup (Windows PowerShell)
+---
 
+## 🚀 Execution Guide (PowerShell / Command Line)
+
+### 1. Run Complete Investigation Suite & Generate Plots + Report
 ```powershell
-cd e:\PINN
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+# Full comparison across 4 benchmarks (ODE, Heat, Burgers, Wave) with 3 seeds
+python scripts\run_full_comparison.py
 
-# Install PyTorch (choose one):
-# CPU version:
-python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-# GPU version (CUDA 12.1):
-python -m pip install torch --index-url https://download.pytorch.org/whl/cu121
+# Rapid smoke test mode
+python scripts\run_full_comparison.py --quick
 ```
 
-## 🧪 Usage Examples
-
-### Run Single Benchmark (Baseline)
-```powershell
-# ODE benchmark (default)
-python scripts\run_baseline.py
-
-# Specific benchmark
-python scripts\run_baseline.py burgers
-python scripts\run_baseline.py heat
-python scripts\run_baseline.py allen_cahn
-```
-
-### Run All Benchmarks (Comparison)
-```powershell
-python scripts\run_all_benchmarks.py
-```
-
-### Hyperparameter Optimization
+### 2. Run Individual Optimizer Categories
 
 ```powershell
-# Genetic Algorithm
+# Standalone optimizers
 python scripts\run_ga.py ode
-python scripts\run_ga.py heat
-
-# Particle Swarm Optimization  
 python scripts\run_pso.py ode
-python scripts\run_pso.py burgers
-
-# Ant Colony Optimization
 python scripts\run_aco.py ode
-python scripts\run_aco.py wave
+python scripts\run_gsa.py ode
+
+# Fuzzy-adaptive optimizers
+python scripts\run_fuzzy.py ode --method all
+python scripts\run_fuzzy.py heat --method pso
+
+# Hybrid metaheuristics
+python scripts\run_hybrids.py ode --method all
+python scripts\run_hybrids.py burgers --method pso_gsa
 ```
 
-### Run Tests
+### 3. Run Test Suite
 ```powershell
 python scripts\run_tests.py
 ```
-
-## 📊 Results Structure
-
-Results are organized as:
-```
-outputs/
-  baseline/
-    ode/metrics.json
-    burgers/metrics.json
-    heat/metrics.json
-    ...
-  ga/
-    ode/ga_best_metrics.json
-    heat/ga_best_metrics.json 
-    ...
-  pso/
-    ode/pso_best_metrics.json
-    ...
-  aco/
-    ode/aco_best_metrics.json
-    ...
-  comparison/
-    baseline_comparison.json
-```
-
-## 🔬 Benchmark Details
-
-### ODE: Exponential Decay
-- **Equation**: `y'(t) = -y(t)`, `y(0) = 1`
-- **Domain**: `t ∈ [0, 5]`
-- **Analytic**: `y(t) = exp(-t)`
-- **Status**: ✅ Fully implemented with training
-
-### Burgers 1D
-- **Equation**: `u_t + u*u_x = ν*u_xx`
-- **IC**: `u(x,0) = sin(πx)`
-- **BC**: `u(±1,t) = 0`
-- **Status**: 📐 Benchmark defined, placeholder training
-
-### Heat Equation
-- **Equation**: `u_t = α*u_xx`
-- **IC**: `u(x,0) = sin(πx/L)`
-- **BC**: `u(0,t) = u(L,t) = 0`
-- **Analytic**: `u(x,t) = sin(πx/L)*exp(-α*π²t/L²)`
-- **Status**: 📐 Benchmark defined, placeholder training
-
-### Allen-Cahn
-- **Equation**: `u_t = D*u_xx + u - u³`
-- **IC**: `u(x,0) = tanh((x-x₀)/√(2D))`
-- **BC**: Neumann `u_x = 0`
-- **Status**: 📐 Benchmark defined, placeholder training
-
-### Reaction-Diffusion (Gray-Scott)
-- **Equations**: 
-  - `u_t = D_u*∇²u - uv² + f(1-u)`
-  - `v_t = D_v*∇²v + uv² - (f+k)v`
-- **Domain**: 2D with periodic BC
-- **Status**: 📐 Benchmark defined, placeholder training
-
-### 2D Navier-Stokes
-- **Equations**: 
-  - `u_t + u·∇u = -∇p + ν∇²u`
-  - `∇·u = 0`
-- **Setup**: Lid-driven cavity
-- **Status**: 📐 Benchmark defined, placeholder training
-
-### Wave Equation
-- **Equation**: `u_tt = c²*u_xx`
-- **IC**: `u(x,0) = sin(πx/L)`, `u_t(x,0) = 0`
-- **Analytic**: `u(x,t) = sin(πx/L)*cos(cπt/L)`
-- **Status**: 📐 Benchmark defined, placeholder training
-
-### Helmholtz
-- **Equation**: `∇²u + k²u = f(x,y)`
-- **Source**: `f = 2π²sin(πx)sin(πy)`
-- **Analytic**: `u = sin(πx)sin(πy)` when `k² = 2π²`
-- **Status**: 📐 Benchmark defined, placeholder training
-
-## ⚙️ HPO Method Details
-
-### Genetic Algorithm (PyGAD)
-- **Population**: 10 individuals
-- **Generations**: 8  
-- **Selection**: Steady-state selection
-- **Crossover**: Single-point
-- **Mutation**: 20% gene mutation rate
-
-### Particle Swarm Optimization (PySwarm)
-- **Swarm size**: 12 particles
-- **Iterations**: 6-8
-- **Inertia/acceleration**: PySwarm defaults
-
-### Ant Colony Optimization (Custom ACOR)
-- **Ants**: 10
-- **Iterations**: 8
-- **Archive size**: 10
-- **Gaussian sampling**: σ based on solution diversity
-
-## 🎯 Next Steps
-
-1. **Install PyTorch** and run baseline: `python scripts\run_baseline.py`
-2. **Run tests**: `python scripts\run_tests.py`
-3. **Compare all benchmarks**: `python scripts\run_all_benchmarks.py`
-4. **Try HPO**: `python scripts\run_ga.py ode`
-

@@ -1,7 +1,16 @@
 numpy>=1.24
 matplotlib>=3.7
+scipy>=1.10
 tqdm>=4.66
 pygad>=3.3
-pyswarm>=0.6
-# PyTorch: on Windows you may prefer installing from https://pytorch.org/get-started/locally/
-# torch>=2.1
+deap>=1.4.0
+# IMPORTANT: pyswarm>=0.6 resolves to pyswarm 1.0.0 on current PyPI, which returns an
+# OptimizeResult object instead of the (best_x, best_f) tuple this codebase's pso.py /
+# fuzzy_pso.py / hybrid_*.py expect - that mismatch crashes every PSO-based run. Pin to
+# the last release with the old API until those call sites are updated for 1.0.0.
+pyswarm==0.6
+# PyTorch is REQUIRED for real PINN training - without it, benchmark_factory.py silently
+# falls back to a synthetic NumPy formula (train_pinn_ode's "else" branch) that fakes a
+# plausible-looking error landscape instead of actually training a network. Install the
+# CPU build from https://pytorch.org/get-started/locally/ or simply:
+torch>=2.1

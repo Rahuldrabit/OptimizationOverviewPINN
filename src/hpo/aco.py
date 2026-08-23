@@ -5,8 +5,29 @@ from typing import Any
 
 import numpy as np
 
-from ..training.pinn_trainer import TrainConfig, train_pinn
-from .search_space import SearchSpace, choose_activation, choose_optimizer, clip_float, clip_int
+try:
+    from ..training.pinn_trainer import TrainConfig, train_pinn
+    from ..utils import ensure_dir, save_json
+    from .search_space import (
+        SearchSpace,
+        choose_activation,
+        choose_optimizer,
+        clip_float,
+        clip_int,
+        decode_solution,
+    )
+except (ImportError, ValueError):
+    from training.pinn_trainer import TrainConfig, train_pinn
+    from utils import ensure_dir, save_json
+    from hpo.search_space import (
+        SearchSpace,
+        choose_activation,
+        choose_optimizer,
+        clip_float,
+        clip_int,
+        decode_solution,
+    )
+
 
 
 def _decode_position(x: np.ndarray, space: SearchSpace, base: TrainConfig) -> TrainConfig:
@@ -104,6 +125,7 @@ def run_aco(
     # Initialize archive uniformly.
     A = sample_uniform(archive_size)
     f = np.array([objective(x) for x in A], dtype=float)
+    history = [float(np.min(f))]
 
     for _ in range(int(n_iterations)):
         # Sort archive by fitness (lower is better).
@@ -148,12 +170,15 @@ def run_aco(
         order = np.argsort(f)
         A = A[order][:archive_size]
         f = f[order][:archive_size]
+        history.append(float(f[0]))
 
     best_x = A[0]
     best_cfg = _decode_position(best_x, space, base)
     best_metrics = train_pinn(best_cfg)
+    best_metrics["history"] = history
+    best_metrics["optimizer_name"] = "ACO"
 
-    from ..utils import save_json
-
+    ensure_dir(out_dir)
     save_json(f"{out_dir}/aco_best_metrics.json", best_metrics)
     return best_metrics
+

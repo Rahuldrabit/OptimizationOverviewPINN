@@ -65,17 +65,32 @@ class TestIntegration(unittest.TestCase):
         self.assertNotEqual(metrics1["val_rel_l2"], metrics2["val_rel_l2"])
 
     def test_placeholder_benchmarks(self):
-        """Test that placeholder benchmarks work for all PDE types."""
-        pde_types = ["burgers", "heat", "allen_cahn", "reaction_diffusion", "navier_stokes", "wave", "helmholtz"]
-        
+        """PDE types with no real trainer implemented yet must still be clearly
+        flagged as placeholder, not silently reported as genuine results."""
+        pde_types = ["allen_cahn", "reaction_diffusion", "navier_stokes", "helmholtz"]
+
         for pde_type in pde_types:
             with self.subTest(benchmark=pde_type):
                 cfg = TrainConfig(benchmark_type=pde_type, n_steps=10)
                 metrics = train_pinn(cfg)
-                
+
                 # Should return placeholder metrics
                 self.assertIn("note", metrics)
                 self.assertIn("placeholder", metrics["note"].lower())
+                self.assertEqual(metrics["config"]["benchmark_type"], pde_type)
+
+    def test_real_pde_benchmarks(self):
+        """Burgers, Heat, and Wave have real PINN trainers now and must NOT fall
+        back to placeholder metrics."""
+        pde_types = ["burgers", "heat", "wave"]
+
+        for pde_type in pde_types:
+            with self.subTest(benchmark=pde_type):
+                cfg = TrainConfig(benchmark_type=pde_type, n_steps=10, n_collocation=32)
+                metrics = train_pinn(cfg)
+
+                self.assertNotIn("note", metrics)
+                self.assertIn("val_rel_l2", metrics)
                 self.assertEqual(metrics["config"]["benchmark_type"], pde_type)
 
 

@@ -239,19 +239,38 @@ class TestTraining(unittest.TestCase):
         self.assertLess(metrics["val_rel_l2"], 10)  # Should be reasonable error
 
     def test_train_pinn_placeholder(self):
-        """Test placeholder training for non-ODE benchmarks."""
-        for benchmark_type in ["burgers", "heat", "allen_cahn"]:
+        """Benchmarks with no real trainer wired up yet should still return the
+        clearly-flagged placeholder metrics (not be reported as genuine results)."""
+        for benchmark_type in ["allen_cahn", "reaction_diffusion", "navier_stokes"]:
             with self.subTest(benchmark_type=benchmark_type):
                 cfg = TrainConfig(
                     benchmark_type=benchmark_type,
                     n_steps=10  # Very small for placeholder
                 )
-                
+
                 metrics = train_pinn(cfg)
-                
+
                 # Should return placeholder metrics
                 self.assertIn("note", metrics)
                 self.assertIn("placeholder", metrics["note"].lower())
+
+    def test_train_pinn_real_pde_trainers(self):
+        """Heat, Burgers, and Wave now have real PINN trainers (see
+        train_pinn_heat/_burgers/_wave in benchmark_factory.py) - they must NOT
+        return the fixed placeholder metrics anymore."""
+        for benchmark_type in ["heat", "burgers", "wave"]:
+            with self.subTest(benchmark_type=benchmark_type):
+                cfg = TrainConfig(
+                    benchmark_type=benchmark_type,
+                    n_steps=10,
+                    n_collocation=32,
+                )
+
+                metrics = train_pinn(cfg)
+
+                self.assertNotIn("note", metrics)
+                self.assertIn("val_rel_l2", metrics)
+                self.assertGreater(metrics["val_rel_l2"], 0)
 
 
 class TestHPO(unittest.TestCase):
@@ -283,15 +302,54 @@ class TestHPO(unittest.TestCase):
 
     def test_hpo_methods_import(self):
         """Test that HPO methods can be imported."""
-        # Test imports don't fail
         from src.hpo.ga import run_ga
         from src.hpo.pso import run_pso  
         from src.hpo.aco import run_aco
+        from src.hpo.gsa import run_gsa
+        from src.hpo.fuzzy_ga import run_fuzzy_ga
+        from src.hpo.fuzzy_pso import run_fuzzy_pso
+        from src.hpo.fuzzy_aco import run_fuzzy_aco
+        from src.hpo.hybrid_ga_pso import run_hybrid_ga_pso
+        from src.hpo.hybrid_pso_gsa import run_hybrid_pso_gsa
+        from src.hpo.hybrid_aco_ga import run_hybrid_aco_ga
+        from src.hpo.fuzzy_controller import FuzzyController, compute_population_diversity
         
-        # Functions should be callable
         self.assertTrue(callable(run_ga))
         self.assertTrue(callable(run_pso))
         self.assertTrue(callable(run_aco))
+        self.assertTrue(callable(run_gsa))
+        self.assertTrue(callable(run_fuzzy_ga))
+        self.assertTrue(callable(run_fuzzy_pso))
+        self.assertTrue(callable(run_fuzzy_aco))
+        self.assertTrue(callable(run_hybrid_ga_pso))
+        self.assertTrue(callable(run_hybrid_pso_gsa))
+        self.assertTrue(callable(run_hybrid_aco_ga))
+
+    def test_fuzzy_controller(self):
+        """Test Mamdani fuzzy inference system."""
+        from src.hpo.fuzzy_controller import FuzzyController, compute_population_diversity
+
+        flc = FuzzyController()
+        # Test extreme cases
+        exp1, expt1 = flc.evaluate(diversity=0.0, improvement_rate=0.0, iteration_progress=0.0)
+        self.assertGreaterEqual(exp1, 0.0)
+        self.assertLessEqual(exp1, 1.0)
+        self.assertGreaterEqual(expt1, 0.0)
+        self.assertLessEqual(expt1, 1.0)
+        # Early iteration should emphasize exploration
+        self.assertGreater(exp1, 0.4)
+
+        # High diversity and fast improvement should emphasize exploitation
+        exp2, expt2 = flc.evaluate(diversity=0.9, improvement_rate=0.9, iteration_progress=0.9)
+        self.assertGreater(expt2, 0.4)
+
+        # Test population diversity calculation
+        pop = np.array([[0.0, 0.0], [1.0, 1.0]])
+        lb, ub = np.array([0.0, 0.0]), np.array([1.0, 1.0])
+        div = compute_population_diversity(pop, lb, ub)
+        self.assertGreater(div, 0.0)
+        self.assertLessEqual(div, 1.0)
+
 
 
 class TestModels(unittest.TestCase):

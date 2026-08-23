@@ -3,8 +3,27 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from ..utils import set_seed, try_set_torch_seed
-from .benchmark_factory import get_benchmark, train_pinn_ode, train_pinn_placeholder
+try:
+    from ..utils import set_seed, try_set_torch_seed
+    from .benchmark_factory import (
+        get_benchmark,
+        train_pinn_ode,
+        train_pinn_heat,
+        train_pinn_burgers,
+        train_pinn_wave,
+        train_pinn_placeholder,
+    )
+except (ImportError, ValueError):
+    from utils import set_seed, try_set_torch_seed
+    from training.benchmark_factory import (
+        get_benchmark,
+        train_pinn_ode,
+        train_pinn_heat,
+        train_pinn_burgers,
+        train_pinn_wave,
+        train_pinn_placeholder,
+    )
+
 
 
 @dataclass(frozen=True)
@@ -25,7 +44,7 @@ class TrainConfig:
 
     # Optimizer
     optimizer: str = "adam"  # "adam", "adamw", "lbfgs"
-    lbfgs_max_iter: int = 20
+    lbfgs_max_iter: int = 3  # reduced from 20: keeps L-BFGS candidates from dominating HPO wall-clock budget
 
     # Training
     lr: float = 1e-3
@@ -50,8 +69,16 @@ def train_pinn(cfg: TrainConfig) -> dict[str, Any]:
     
     if cfg.benchmark_type == "ode":
         metrics = train_pinn_ode(cfg, bench)
+    elif cfg.benchmark_type == "heat":
+        metrics = train_pinn_heat(cfg, bench)
+    elif cfg.benchmark_type == "burgers":
+        metrics = train_pinn_burgers(cfg, bench)
+    elif cfg.benchmark_type == "wave":
+        metrics = train_pinn_wave(cfg, bench)
     else:
-        # Use placeholder for other benchmarks
+        # Real trainer not yet implemented for this PDE (allen_cahn, reaction_diffusion,
+        # navier_stokes, helmholtz) - falls back to fixed placeholder metrics. Any results
+        # for these benchmark types are NOT real and must not be reported as such.
         metrics = train_pinn_placeholder(cfg, bench)
 
     return {
