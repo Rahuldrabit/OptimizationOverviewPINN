@@ -16,6 +16,7 @@ try:
         clip_int,
         decode_solution,
     )
+    from .fuzzy_controller import compute_population_diversity
 except (ImportError, ValueError):
     from training.pinn_trainer import TrainConfig, train_pinn
     from utils import ensure_dir, save_json
@@ -27,6 +28,7 @@ except (ImportError, ValueError):
         clip_int,
         decode_solution,
     )
+    from hpo.fuzzy_controller import compute_population_diversity
 
 
 
@@ -126,8 +128,9 @@ def run_aco(
     A = sample_uniform(archive_size)
     f = np.array([objective(x) for x in A], dtype=float)
     history = [float(np.min(f))]
+    diversity_history = [{"iteration": 0, "diversity": compute_population_diversity(A, lb, ub)}]
 
-    for _ in range(int(n_iterations)):
+    for it in range(1, int(n_iterations) + 1):
         # Sort archive by fitness (lower is better).
         order = np.argsort(f)
         A = A[order]
@@ -171,11 +174,13 @@ def run_aco(
         A = A[order][:archive_size]
         f = f[order][:archive_size]
         history.append(float(f[0]))
+        diversity_history.append({"iteration": it, "diversity": compute_population_diversity(A, lb, ub)})
 
     best_x = A[0]
     best_cfg = _decode_position(best_x, space, base)
     best_metrics = train_pinn(best_cfg)
     best_metrics["history"] = history
+    best_metrics["diversity_history"] = diversity_history
     best_metrics["optimizer_name"] = "ACO"
 
     ensure_dir(out_dir)

@@ -151,12 +151,39 @@ ALGORITHM_REGISTRY: dict[str, Callable[..., dict[str, Any]]] = {
 
 
 
+def _run_single_job(alg: str, out_dir: str, bmark: str, seed: int, n_steps: int, quick: bool) -> tuple[dict[str, Any], float]:
+    """Module-level worker: runs one (benchmark, algorithm, seed) job and times it.
+
+    Kept at module scope (rather than inline) so it can be pickled by reference when
+    dispatched through ProcessPoolExecutor with the "spawn" start method (required on
+    Windows) - only the algorithm name and plain arguments cross the process boundary,
+    not the ALGORITHM_REGISTRY lambda itself.
+    """
+    try:
+        import torch
+        torch.set_num_threads(1)  # avoid N-worker x M-thread oversubscription across cores
+    except ImportError:
+        pass
+    ensure_dir(out_dir)
+    runner_fn = ALGORITHM_REGISTRY[alg]
+    t0 = time.perf_counter()
+    run_metrics = runner_fn(out_dir, bmark, seed, n_steps, quick)
+    elapsed = time.perf_counter() - t0
+    return run_metrics, elapsed
+
+
 def run_experiment_grid(
     config: ExperimentConfig,
     quick: bool = False,
-    verbose: bool = True
+    verbose: bool = True,
+    max_workers: int = 1,
 ) -> dict[str, Any]:
-    """Execute the full config-style search across algorithms, benchmarks, and seeds."""
+    """Execute the full config-style search across algorithms, benchmarks, and seeds.
+
+    max_workers > 1 dispatches independent (benchmark, algorithm, seed) jobs across a
+    ProcessPoolExecutor to use multiple CPU cores; max_workers=1 preserves the original
+    strictly-serial behavior.
+    """
     ensure_dir(config.output_dir)
     results: dict[str, Any] = {
         "metadata": {
@@ -180,7 +207,48 @@ def run_experiment_grid(
         print(f"Benchmarks: {config.benchmarks}")
         print(f"Algorithms: {config.algorithms}")
         print(f"Seeds: {config.seeds}")
+        print(f"Parallel workers: {max_workers}")
         print("=" * 70)
+
+    # Job specs: (bmark, alg, seed, out_dir), skipping unknown algorithms up front.
+    job_specs: list[tuple[str, str, int, str]] = []
+    for bmark in config.benchmarks:
+        for alg in config.algorithms:
+            if alg not in ALGORITHM_REGISTRY:
+                print(f"Warning: algorithm '{alg}' not found in registry, skipping.")
+                continue
+            for seed in config.seeds:
+                out_dir = os.path.join(config.output_dir, "runs", bmark, alg.lower().replace(" ", "_"), f"seed_{seed}")
+                job_specs.append((bmark, alg, seed, out_dir))
+
+    job_results: dict[tuple[str, str, int], tuple[dict[str, Any], float]] = {}
+
+    if max_workers > 1:
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_run_single_job, alg, out_dir, bmark, seed, config.n_steps, quick): (bmark, alg, seed)
+                for (bmark, alg, seed, out_dir) in job_specs
+            }
+            for future in as_completed(futures):
+                bmark, alg, seed = futures[future]
+                current_run += 1
+                run_metrics, elapsed = future.result()
+                job_results[(bmark, alg, seed)] = (run_metrics, elapsed)
+                if verbose:
+                    rel_l2 = float(run_metrics.get("val_rel_l2", 1.0))
+                    print(f"[{current_run}/{total_runs}] {alg:20s} {bmark:10s} seed={seed} done (rel_L2 = {rel_l2:.6f}, time = {elapsed:.2f}s)")
+    else:
+        for (bmark, alg, seed, out_dir) in job_specs:
+            current_run += 1
+            if verbose:
+                print(f"[{current_run}/{total_runs}] Running {alg:15s} on {bmark:10s} (seed={seed})...", end="", flush=True)
+            run_metrics, elapsed = _run_single_job(alg, out_dir, bmark, seed, config.n_steps, quick)
+            job_results[(bmark, alg, seed)] = (run_metrics, elapsed)
+            if verbose:
+                rel_l2 = float(run_metrics.get("val_rel_l2", 1.0))
+                print(f" done (rel_L2 = {rel_l2:.6f}, time = {elapsed:.2f}s)")
 
     for bmark in config.benchmarks:
         results["raw_runs"][bmark] = {}
@@ -197,24 +265,16 @@ def run_experiment_grid(
             seed_times = []
             histories = []
             best_configs = []
+            diversity_histories = []
 
             for seed in config.seeds:
-                current_run += 1
-                out_dir = os.path.join(config.output_dir, "runs", bmark, alg.lower().replace(" ", "_"), f"seed_{seed}")
-                ensure_dir(out_dir)
-
-                if verbose:
-                    print(f"[{current_run}/{total_runs}] Running {alg:15s} on {bmark:10s} (seed={seed})...", end="", flush=True)
-
-                t0 = time.perf_counter()
-                runner_fn = ALGORITHM_REGISTRY[alg]
-                run_metrics = runner_fn(out_dir, bmark, seed, config.n_steps, quick)
-                elapsed = time.perf_counter() - t0
+                run_metrics, elapsed = job_results[(bmark, alg, seed)]
 
                 rel_l2 = float(run_metrics.get("val_rel_l2", 1.0))
                 mse = float(run_metrics.get("val_mse", 1.0))
                 history = run_metrics.get("history", [rel_l2])
                 best_cfg = run_metrics.get("config", {})
+                diversity_history = run_metrics.get("diversity_history", [])
 
                 run_entry = {
                     "seed": seed,
@@ -223,6 +283,7 @@ def run_experiment_grid(
                     "runtime_sec": elapsed,
                     "history": history,
                     "best_config": best_cfg,
+                    "diversity_history": diversity_history,
                 }
                 results["raw_runs"][bmark][alg].append(run_entry)
 
@@ -231,9 +292,7 @@ def run_experiment_grid(
                 seed_times.append(elapsed)
                 histories.append(history)
                 best_configs.append(best_cfg)
-
-                if verbose:
-                    print(f" done (rel_L2 = {rel_l2:.6f}, time = {elapsed:.2f}s)")
+                diversity_histories.append(diversity_history)
 
             # Aggregate statistics across seeds for this benchmark + algorithm
             min_len = min(len(h) for h in histories) if histories else 1
@@ -241,6 +300,23 @@ def run_experiment_grid(
             mean_history = list(np.mean(trimmed_histories, axis=0))
 
             best_seed_idx = int(np.argmin(seed_errors))
+
+            # Aggregate real per-generation diversity (exploration) trajectories across seeds.
+            # Fuzzy variants record this every generation/iteration via compute_population_diversity;
+            # plain GA/PSO/ACO record it too (see src/hpo/{ga,pso,aco}.py). Only the pyswarm-library
+            # PSO path (unused unless pyswarm is installed) has no per-iteration hook and yields [].
+            valid_div_histories = [dh for dh in diversity_histories if dh]
+            if valid_div_histories:
+                div_min_len = min(len(dh) for dh in valid_div_histories)
+                div_matrix = np.array(
+                    [[step["diversity"] for step in dh[:div_min_len]] for dh in valid_div_histories],
+                    dtype=float,
+                )
+                mean_diversity_trajectory = list(np.mean(div_matrix, axis=0))
+                overall_mean_diversity = float(np.mean(div_matrix))
+            else:
+                mean_diversity_trajectory = []
+                overall_mean_diversity = float("nan")
 
             results["benchmark_summary"][bmark][alg] = {
                 "mean_rel_l2": float(np.mean(seed_errors)),
@@ -250,6 +326,8 @@ def run_experiment_grid(
                 "mean_mse": float(np.mean(seed_mses)),
                 "mean_runtime_sec": float(np.mean(seed_times)),
                 "mean_history": mean_history,
+                "mean_diversity_trajectory": mean_diversity_trajectory,
+                "overall_mean_diversity": overall_mean_diversity,
                 "best_config": best_configs[best_seed_idx],
                 "all_seed_rel_l2": seed_errors,
             }
@@ -270,17 +348,23 @@ def run_experiment_grid(
         all_errs = [results["benchmark_summary"][bm][alg]["mean_rel_l2"] for bm in config.benchmarks]
         all_stds = [results["benchmark_summary"][bm][alg]["std_rel_l2"] for bm in config.benchmarks]
         all_runtimes = [results["benchmark_summary"][bm][alg]["mean_runtime_sec"] for bm in config.benchmarks]
+        all_diversities = [
+            results["benchmark_summary"][bm][alg]["overall_mean_diversity"] for bm in config.benchmarks
+            if not np.isnan(results["benchmark_summary"][bm][alg]["overall_mean_diversity"])
+        ]
 
         avg_rank = float(np.mean(ranks)) if ranks else 999.0
         overall_mean_error = float(np.mean(all_errs))
         overall_mean_std = float(np.mean(all_stds))
         overall_mean_runtime = float(np.mean(all_runtimes))
+        overall_mean_diversity = float(np.mean(all_diversities)) if all_diversities else float("nan")
 
         global_rankings[alg] = {
             "average_rank": avg_rank,
             "overall_mean_rel_l2": overall_mean_error,
             "overall_mean_std": overall_mean_std,
             "overall_mean_runtime_sec": overall_mean_runtime,
+            "overall_mean_diversity": overall_mean_diversity,
             "benchmark_ranks": {bm: alg_ranks[alg][i] for i, bm in enumerate(config.benchmarks)},
         }
 

@@ -16,6 +16,7 @@ try:
         clip_int,
         decode_solution,
     )
+    from .fuzzy_controller import compute_population_diversity
 except (ImportError, ValueError):
     from training.pinn_trainer import TrainConfig, train_pinn
     from utils import ensure_dir, save_json
@@ -27,6 +28,7 @@ except (ImportError, ValueError):
         clip_int,
         decode_solution,
     )
+    from hpo.fuzzy_controller import compute_population_diversity
 
 
 
@@ -63,7 +65,7 @@ def _ga_numpy(
     sol_per_pop: int = 10, n_generations: int = 10,
     num_parents_mating: int = 4, mutation_rate: float = 0.2,
     seed: int = 0
-) -> tuple[np.ndarray, float, list[float]]:
+) -> tuple[np.ndarray, float, list[float], list[dict[str, Any]]]:
     rng = np.random.default_rng(seed)
     dim = len(lb)
 
@@ -75,8 +77,9 @@ def _ga_numpy(
     best_ind = pop[best_idx].copy()
     best_fit = float(fitnesses[best_idx])
     history = [-best_fit]  # Convert back to error for history tracking
+    diversity_history = [{"generation": 0, "diversity": compute_population_diversity(pop, lb, ub)}]
 
-    for _ in range(n_generations):
+    for gen in range(1, int(n_generations) + 1):
         # Selection: Tournament selection
         parents = []
         for _ in range(num_parents_mating):
@@ -113,8 +116,9 @@ def _ga_numpy(
             best_ind = pop[best_idx].copy()
 
         history.append(-best_fit)
+        diversity_history.append({"generation": gen, "diversity": compute_population_diversity(pop, lb, ub)})
 
-    return best_ind, best_fit, history
+    return best_ind, best_fit, history, diversity_history
 
 
 def run_ga(
@@ -136,6 +140,8 @@ def run_ga(
         rel_l2 = float(metrics["val_rel_l2"])
         return -rel_l2
 
+    diversity_history: list[dict[str, Any]] = []
+
     try:
         import pygad
 
@@ -153,6 +159,13 @@ def run_ga(
         def pygad_fitness(ga_instance, solution, solution_idx):
             return fitness_func_raw(solution)
 
+        def pygad_on_generation(ga_instance):
+            gen_lb, gen_ub = lb, ub
+            diversity_history.append({
+                "generation": int(ga_instance.generations_completed),
+                "diversity": compute_population_diversity(ga_instance.population, gen_lb, gen_ub),
+            })
+
         ga = pygad.GA(
             num_generations=int(n_generations),
             num_parents_mating=int(num_parents_mating),
@@ -165,12 +178,14 @@ def run_ga(
             crossover_type="single_point",
             mutation_type="random",
             mutation_percent_genes=20,
+            on_generation=pygad_on_generation,
         )
+        diversity_history.append({"generation": 0, "diversity": compute_population_diversity(ga.population, lb, ub)})
         ga.run()
         solution, solution_fitness, _ = ga.best_solution()
         history = [-float(f) for f in getattr(ga, "best_solutions_fitness", [solution_fitness])]
     except ImportError:
-        solution, solution_fitness, history = _ga_numpy(
+        solution, solution_fitness, history, diversity_history = _ga_numpy(
             fitness_func_raw, lb, ub,
             sol_per_pop=int(sol_per_pop), n_generations=int(n_generations),
             num_parents_mating=int(num_parents_mating), seed=seed
@@ -179,6 +194,7 @@ def run_ga(
     best_cfg = _decode_solution(np.asarray(solution), space, base)
     best_metrics = train_pinn(best_cfg)
     best_metrics["history"] = history
+    best_metrics["diversity_history"] = diversity_history
     best_metrics["optimizer_name"] = "GA"
 
     ensure_dir(out_dir)

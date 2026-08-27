@@ -1,287 +1,360 @@
-"""Generate ACM-formatted paper comparing GA, PSO, ACO, GA-ACO, GA-PSO for PINN HPO.
+"""Generate an ACM sigconf (two-column) paper comparing GA, PSO, ACO, Fuzzy-GA,
+Fuzzy-PSO, and Fuzzy-ACO for PINN hyperparameter optimization, for NSYS 2026.
 
-Extracts results from comparison output and formats as 2-column ACM paper
-suitable for NSYS 2026 submission, comparing against recent baselines.
+Reads outputs/nsys2026/hpo_comparison_results.json (produced by
+scripts/run_nsys2026_manuscript.py) and reports only numbers that are actually
+in that file - real per-generation convergence and diversity/exploration
+trajectories (src/hpo/{ga,pso,aco,fuzzy_ga,fuzzy_pso,fuzzy_aco}.py), not
+assumed or hardcoded scores. See MEMORY note "paper-not-publishable": do not
+add claims here that the underlying JSON does not support.
+
+Usage:
+    python scripts/generate_acm_paper.py --results-dir outputs/nsys2026
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
+ALGORITHMS = ["GA", "PSO", "ACO", "Fuzzy-GA", "Fuzzy-PSO", "Fuzzy-ACO"]
+
 
 def load_results(results_dir: str) -> dict[str, Any]:
-    """Load HPO comparison results JSON."""
     results_file = os.path.join(results_dir, "hpo_comparison_results.json")
     if not os.path.exists(results_file):
-        print(f"[ERROR] Results file not found: {results_file}")
-        return {}
+        raise FileNotFoundError(
+            f"Results file not found: {results_file}\n"
+            f"Run scripts/run_nsys2026_manuscript.py first to generate it."
+        )
     with open(results_file, "r") as f:
         return json.load(f)
 
 
-def extract_algorithms(results: dict[str, Any], algo_names: list[str]) -> dict[str, Any]:
-    """Extract specific algorithms from results."""
+def compute_algo_stats(results: dict[str, Any], algorithms: list[str]) -> dict[str, Any]:
+    """Aggregate mean/std error, runtime, and mean diversity per algorithm, across
+    all benchmarks and seeds present in the results file. All numbers are computed
+    directly from raw_runs - nothing here is a hardcoded or assumed constant."""
     raw_runs = results.get("raw_runs", {})
-    extracted = {}
+    benchmarks = results.get("metadata", {}).get("benchmarks", [])
+    stats: dict[str, Any] = {}
 
-    for benchmark, alg_data in raw_runs.items():
-        extracted[benchmark] = {}
-        for algo in algo_names:
-            if algo in alg_data:
-                extracted[benchmark][algo] = alg_data[algo]
-
-    return extracted
-
-
-def compute_statistics(runs: list[dict]) -> dict[str, float]:
-    """Compute mean, std, min, max from run results."""
-    vals = [r.get("val_rel_l2", 1.0) for r in runs]
-    times = [r.get("runtime_sec", 0) for r in runs]
-
-    import numpy as np
-    return {
-        "mean_l2": float(np.mean(vals)),
-        "std_l2": float(np.std(vals)),
-        "min_l2": float(np.min(vals)),
-        "max_l2": float(np.max(vals)),
-        "mean_time": float(np.mean(times)),
-        "count": len(vals),
-    }
-
-
-def generate_latex_paper(results: dict[str, Any], output_file: str) -> None:
-    """Generate ACM-formatted 2-column LaTeX paper."""
-
-    algorithms = ["GA", "PSO", "ACO", "GA-PSO Hybrid", "ACO-GA Hybrid"]
-
-    extracted = extract_algorithms(results, algorithms)
-
-    # Compute aggregate statistics
-    stats_by_algo = {}
     for algo in algorithms:
-        all_runs = []
-        for benchmark_data in extracted.values():
-            if algo in benchmark_data:
-                all_runs.extend(benchmark_data[algo])
-        if all_runs:
-            stats_by_algo[algo] = compute_statistics(all_runs)
+        errs, times, diversities, n_generations = [], [], [], []
+        per_benchmark: dict[str, list[float]] = {}
 
-    # Generate LaTeX
-    latex = r"""\documentclass[sigconf, twocolumn]{acmart}
+        for bmark in benchmarks:
+            runs = raw_runs.get(bmark, {}).get(algo, [])
+            bmark_errs = [r["val_rel_l2"] for r in runs]
+            per_benchmark[bmark] = bmark_errs
+            for r in runs:
+                errs.append(r["val_rel_l2"])
+                times.append(r["runtime_sec"])
+                dh = r.get("diversity_history", [])
+                if dh:
+                    diversities.extend(step["diversity"] for step in dh)
+                    n_generations.append(len(dh))
 
+        if not errs:
+            continue
+
+        stats[algo] = {
+            "mean_l2": float(np.mean(errs)),
+            "std_l2": float(np.std(errs)),
+            "min_l2": float(np.min(errs)),
+            "max_l2": float(np.max(errs)),
+            "mean_time": float(np.mean(times)),
+            "mean_diversity": float(np.mean(diversities)) if diversities else float("nan"),
+            "mean_generations": float(np.mean(n_generations)) if n_generations else float("nan"),
+            "n_runs": len(errs),
+            "per_benchmark": per_benchmark,
+        }
+
+    return stats
+
+
+def significance_note(stats: dict[str, Any], n_seeds: int) -> str:
+    """Best-effort paired significance check between the top-ranked and the plain-GA
+    baseline. Honest about statistical power instead of asserting significance from
+    a handful of seeds (see MEMORY: prior draft claimed significance from 2 seeds)."""
+    if n_seeds < 5:
+        return (
+            f"With only {n_seeds} random seed(s) per (algorithm, benchmark) cell, this study is "
+            r"\emph{not} statistically powered for a formal significance test (e.g., Wilcoxon "
+            r"signed-rank or Friedman); rank differences below should be read as descriptive, "
+            r"not as evidence of a significant effect. A follow-up with $\geq$10 seeds is needed "
+            "before any claim of statistical significance."
+        )
+    try:
+        from scipy.stats import wilcoxon
+    except ImportError:
+        return "scipy was not available to compute a formal significance test; ranks are descriptive only."
+
+    sorted_algs = sorted(stats.items(), key=lambda kv: kv[1]["mean_l2"])
+    best_alg = sorted_algs[0][0]
+    if best_alg == "GA" or "GA" not in stats:
+        return "Best-ranked algorithm is the GA baseline itself; no separate significance test applies."
+    return (
+        f"A Wilcoxon signed-rank test between {best_alg} and the GA baseline "
+        "would require paired per-seed samples on matching benchmarks; see raw_runs in the "
+        "results JSON for the underlying paired values before citing a p-value."
+    )
+
+
+def generate_latex_paper(results: dict[str, Any], stats: dict[str, Any], output_file: str, figures_rel: str) -> None:
+    benchmarks = results.get("metadata", {}).get("benchmarks", [])
+    seeds = results.get("metadata", {}).get("seeds", [])
+
+    sorted_algos = sorted(stats.items(), key=lambda kv: kv[1]["mean_l2"])
+    best_alg, best_stats = sorted_algos[0]
+    worst_alg, worst_stats = sorted_algos[-1]
+
+    fuzzy_algs = [a for a, _ in sorted_algos if "Fuzzy" in a]
+    plain_algs = [a for a, _ in sorted_algos if "Fuzzy" not in a]
+    best_fuzzy = fuzzy_algs[0] if fuzzy_algs else None
+    best_plain = plain_algs[0] if plain_algs else None
+
+    sig_note = significance_note(stats, len(seeds))
+
+    latex: list[str] = []
+    latex.append(r"\documentclass[sigconf]{acmart}")
+    latex.append(r"""
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{graphicx}
 \usepackage{booktabs}
-\usepackage{xcolor}
+\settopmatter{printacmref=false}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
 
-\title{Comparative Analysis of Metaheuristic Optimization Strategies for Physics-Informed Neural Network Hyperparameter Tuning}
+\title{An Empirical Comparison of Genetic, Particle Swarm, Ant Colony, and Fuzzy-Adaptive Metaheuristics for Physics-Informed Neural Network Hyperparameter Optimization}
 
-\author{Research Team}
-\affiliation{
-  \institution{Computational Intelligence Laboratory}
-  \country{USA}
-}
+\author{Rahul Drabit Chowdhury}
+\affiliation{\institution{Independent Research}\country{}}
 
 \begin{document}
+\begin{abstract}""")
 
-\begin{abstract}
-We present a comprehensive empirical comparison of five metaheuristic optimization algorithms—Genetic Algorithm (GA), Particle Swarm Optimization (PSO), Ant Colony Optimization (ACO), and their hybrid variants (GA-PSO, ACO-GA)—for automated hyperparameter optimization of Physics-Informed Neural Networks (PINNs) across four canonical PDE benchmarks. Our results demonstrate that hybrid metaheuristics consistently outperform standalone methods, with ACO-GA achieving up to 2.8× lower relative $L_2$ error compared to baseline GA on complex PDEs. We validate all implementations against standard frameworks and provide practical selection guidelines for practitioners.
-\end{abstract}
+    latex.append(
+        f"We empirically compare six metaheuristic hyperparameter optimizers -- Genetic Algorithm (GA), "
+        f"Particle Swarm Optimization (PSO), Ant Colony Optimization (ACO/ACOR), and their Mamdani "
+        f"fuzzy-adaptive variants (Fuzzy-GA, Fuzzy-PSO, Fuzzy-ACO) -- for tuning Physics-Informed Neural "
+        f"Networks (PINNs) across {len(benchmarks)} PDE benchmarks ({', '.join(b.upper() for b in benchmarks)}) "
+        f"with {len(seeds)} random seed(s) per configuration. Unlike prior comparisons that report only final "
+        f"error, we log real per-generation population/swarm/archive diversity for every algorithm "
+        f"(not only the fuzzy variants) and use it to characterize exploration-exploitation behavior "
+        f"directly, rather than assuming it from algorithm category. "
+        f"The best-performing method in this run, {best_alg}, reaches a mean relative "
+        f"$L_2$ error of {best_stats['mean_l2']:.6f} (min {best_stats['min_l2']:.6f}) versus "
+        f"{worst_stats['mean_l2']:.6f} for the weakest, {worst_alg}. {sig_note}"
+    )
+    latex.append(r"\end{abstract}")
+
+    latex.append(r"""
+\maketitle
 
 \section{Introduction}
-Physics-Informed Neural Networks (PINNs) have emerged as a powerful paradigm for solving forward and inverse problems governed by partial differential equations. However, PINN training is notoriously sensitive to hyperparameter selection, where the interplay between network architecture, optimizer choice, learning rate, and loss weight coefficients critically determines convergence behavior.
-
-Recent literature \cite{buzaev2026evolutionary} has proposed evolutionary strategies for PINN HPO, yet systematic comparisons of core metaheuristics remain limited. This paper bridges this gap through rigorous empirical evaluation.
+Physics-Informed Neural Networks (PINNs)~\cite{raissi2019physics,karniadakis2021physics} embed PDE
+residuals directly into the training loss, but their accuracy is highly sensitive to hyperparameters
+(architecture, activation, optimizer, learning rate, and physics/initial-condition loss weights).
+Recent work has explored evolutionary strategies for PINN hyperparameter optimization (HPO), including
+a two-stage evolutionary approach~\cite{buzaev2026evolutionary} and evolutionary PINNs for inverse
+modeling~\cite{jasim2026evopinn}. This paper reports a controlled, same-codebase comparison of six
+classical and fuzzy-adaptive metaheuristics under an identical search space and training budget, with
+particular attention to two properties that prior comparisons typically assume rather than measure:
+population/swarm/archive \emph{diversity} across generations, and how that diversity trades off against
+convergence speed.
 
 \section{Methodology}
 
-\subsection{Algorithms Evaluated}
-We compare five algorithms spanning standalone and hybrid approaches:
+\subsection{Algorithms}
 \begin{itemize}
-    \item \textbf{GA}: Tournament selection, uniform crossover, elitist replacement
-    \item \textbf{PSO}: Inertial velocity updates with cognitive and social terms
-    \item \textbf{ACO}: Continuous ACOR with Gaussian mixture archive
-    \item \textbf{GA-PSO}: Alternating GA exploitation and PSO exploration phases
-    \item \textbf{ACO-GA}: ACO archive seeding into GA population
+    \item \textbf{GA}~\cite{holland1992genetic}: tournament selection, single-point crossover, elitist replacement.
+    \item \textbf{PSO}~\cite{kennedy1995particle}: inertia-weighted velocity update with cognitive/social terms.
+    \item \textbf{ACO / ACOR}~\cite{dorigo2006ant,socha2008ant}: continuous ant colony optimization with a Gaussian-kernel-weighted solution archive.
+    \item \textbf{Fuzzy-GA / Fuzzy-PSO / Fuzzy-ACO}: each classical algorithm augmented with a Mamdani fuzzy inference controller~\cite{mamdani1975experiment} that observes measured population diversity, fitness improvement rate, and search progress each generation, and outputs exploration/exploitation weights that adapt mutation rate, inertia, or archive spread accordingly.
 \end{itemize}
+
+\subsection{Diversity / Exploration Measurement}
+For every algorithm (not only the fuzzy variants), we compute a normalized diversity score each
+generation/iteration as the mean Euclidean distance of the population/swarm/archive to its own
+centroid in the normalized search space, divided by the theoretical maximum spread of a unit
+hypercube of the same dimensionality. This gives a directly comparable, measured exploration signal
+across all six algorithms instead of an assumed category-based bonus.
 
 \subsection{Search Space}
-All algorithms optimize 8 hyperparameters: network depth [2-6], width [16-256], activation function, optimizer type, learning rate [$10^{-5}$ to $10^{-1}$], physics/IC loss weights, and collocation points.
+All algorithms optimize the same 8-dimensional space: hidden layers, hidden width, activation
+(tanh / sine / swish), optimizer (Adam / AdamW / L-BFGS), learning rate (log-scale), physics loss
+weight, initial-condition loss weight, and number of collocation points.
 
 \subsection{Benchmarks}
-Evaluation across four classical PDEs:
-\begin{itemize}
-    \item ODE: Exponential decay (analytic solution available)
-    \item Heat: 1D diffusion with Dirichlet boundaries
-    \item Burgers: 1D viscous conservation law
-    \item Wave: 1D hyperbolic PDE
-\end{itemize}
+""")
+    latex.append(
+        f"Evaluation covers {len(benchmarks)} PDE benchmarks with real PyTorch PINN training: "
+        f"{', '.join(b.upper() for b in benchmarks)}. Other PDE families (Allen-Cahn, "
+        "reaction-diffusion, Navier-Stokes, Helmholtz) are deliberately excluded from this paper "
+        "because this codebase does not yet have a verified, non-placeholder trainer for them."
+    )
 
+    latex.append(r"""
 \section{Results}
 
-\subsection{Overall Performance}
+\subsection{Overall Ranking}
 \begin{table}[h]
 \centering
 \small
-\caption{Aggregate Performance Metrics (mean $\pm$ std over 4 benchmarks × 2 seeds)}
-\begin{tabular}{lcccc}
+\caption{Aggregate performance across all benchmarks and seeds (mean over """ + str(len(benchmarks)) + r""" benchmarks $\times$ """ + str(len(seeds)) + r""" seed(s)). Diversity is the measured mean normalized population/swarm/archive spread across all recorded generations.}
+\begin{tabular}{lccc}
 \toprule
-\textbf{Algorithm} & \textbf{Mean $L_2$} & \textbf{Std $L_2$} & \textbf{Time (s)} & \textbf{Rank}\\
+\textbf{Algorithm} & \textbf{Mean $L_2$} & \textbf{Std $L_2$} & \textbf{Mean Diversity} \\
 \midrule
-"""
-
-    # Add statistics rows
-    rank = 1
-    sorted_algos = sorted(stats_by_algo.items(),
-                         key=lambda x: x[1]["mean_l2"])
-
-    for algo, stats in sorted_algos:
-        latex += f"{algo:20s} & {stats['mean_l2']:.6f} & {stats['std_l2']:.6f} & {stats['mean_time']:.1f} & {rank} \\\\\n"
-        rank += 1
-
-    latex += r"""\bottomrule
+""")
+    for algo, s in sorted_algos:
+        div_str = f"{s['mean_diversity']:.3f}" if not np.isnan(s["mean_diversity"]) else "n/a"
+        latex.append(f"{algo} & {s['mean_l2']:.6f} & {s['std_l2']:.6f} & {div_str} \\\\")
+    latex.append(r"""\bottomrule
 \end{tabular}
 \end{table}
+""")
 
-\subsection{Per-Benchmark Analysis}
-Hybrid methods demonstrate superior performance on complex benchmarks (Burgers, Heat), while all methods converge rapidly on the simple ODE. ACO-GA Hybrid achieves the lowest mean error across all benchmarks, with minimal cross-seed variance.
+    latex.append(r"\subsection{Convergence and Diversity Trajectories}")
+    latex.append(
+        r"Figure~\ref{fig:convergence} shows mean per-generation validation error, and "
+        r"Figure~\ref{fig:diversity} shows the corresponding measured diversity trajectory for the "
+        r"same runs. A useful search dynamic is visible where diversity is high in early generations "
+        r"and declines as the population/swarm/archive converges; algorithms that collapse diversity "
+        r"too early risk premature convergence, while those that sustain it too long converge slowly."
+    )
+    latex.append(r"""
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{""" + figures_rel + r"""/convergence_comparison.png}
+\caption{Mean validation relative $L_2$ error per generation/iteration, by benchmark.}
+\label{fig:convergence}
+\end{figure}
 
-\subsection{Computational Cost}
-GA and PSO exhibit fastest wall-clock times (16-36s per run), while ACO and hybrids show 40-120s due to higher-dimensional evaluations. Accuracy-vs-speed trade-offs favor hybrid approaches.
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{""" + figures_rel + r"""/diversity_exploration_trajectories.png}
+\caption{Measured population/swarm/archive diversity per generation/iteration, by benchmark.}
+\label{fig:diversity}
+\end{figure}
+""")
 
-\section{Comparison with Recent Work}
-Buzaev et al. (2026) proposed a two-stage evolutionary strategy achieving 0.01153 relative $L_2$ error. Our ACO-GA Hybrid achieves comparable or superior accuracy (0.00438–0.00535 range in full-scale runs) while maintaining computational feasibility.
+    if best_plain and best_fuzzy:
+        plain_l2 = stats[best_plain]["mean_l2"]
+        fuzzy_l2 = stats[best_fuzzy]["mean_l2"]
+        direction = "lower" if fuzzy_l2 < plain_l2 else "higher"
+        latex.append(
+            f"\\subsection{{Fuzzy-Adaptive vs.\\ Classical Variants}}\n"
+            f"The best classical (non-fuzzy) algorithm in this run is {best_plain} "
+            f"(mean $L_2$ = {plain_l2:.6f}); the best fuzzy-adaptive variant is {best_fuzzy} "
+            f"(mean $L_2$ = {fuzzy_l2:.6f}), a {direction} mean error. "
+        )
 
-\section{Practical Recommendations}
-\begin{itemize}
-    \item \textbf{Tight Budget (<30 evals)}: Deploy GA or PSO for rapid exploration
-    \item \textbf{Standard Budget (60-100 evals)}: GA-PSO or ACO-GA for multimodal landscapes
-    \item \textbf{High-Precision Systems}: ACO-GA with extended refinement budget
-\end{itemize}
+    latex.append(r"\subsection{Comparison with Recent PINN-HPO Literature}")
+    latex.append(
+        r"Buzaev et al.~\cite{buzaev2026evolutionary} propose a two-stage evolutionary strategy for "
+        r"PINN HPO; Jasim et al.~\cite{jasim2026evopinn} apply evolutionary PINNs to inverse geotechnical "
+        r"and structural modeling. Both use PDE benchmarks and search spaces that differ from this study's, "
+        r"so we report our results alongside theirs qualitatively rather than asserting a numeric "
+        r"head-to-head comparison; a fair quantitative comparison would require re-running their method "
+        r"in this codebase under matched search-space and training-step budgets."
+    )
 
-\section{Conclusion}
-Our systematic evaluation demonstrates that hybrid metaheuristics consistently outperform standalone methods for PINN HPO. ACO-GA emerges as the best-performing algorithm, balancing exploration-exploitation trade-offs effectively on complex PDE landscapes. Future work will extend these methods to higher-dimensional problems and adaptive parameter control.
+    latex.append(r"\section{Threats to Validity}")
+    latex.append(
+        f"(1) {sig_note} "
+        "(2) Training runs on CPU with a fixed step budget; results may shift under GPU training or "
+        "a larger step budget. (3) Only four PDE benchmarks with verified real trainers are included; "
+        "generalization to other PDE families is untested here."
+    )
 
-\section*{Reproducibility}
-All code, hyperparameters, and random seeds are available at: \texttt{https://github.com/Rahuldrabit/OptimizationOverviewPINN}
+    latex.append(r"""
+\section{Reproducibility}
+All code is available at \texttt{https://github.com/Rahuldrabit/OptimizationOverviewPINN}. Every number
+in this paper is generated directly from \texttt{outputs/nsys2026/hpo\_comparison\_results.json},
+produced by \texttt{scripts/run\_nsys2026\_manuscript.py}.
 
-\bibliographystyle{acmreferences}
-\begin{thebibliography}{99}
-
-\bibitem{buzaev2026evolutionary}
-Buzaev, A., et al. (2026).
-``Evolutionary strategies for PINN hyperparameter optimization.''
-\textit{ICLR 2026 Workshop on AI for PDEs}.
-
-\bibitem{raissi2019physics}
-Raissi, M., Perdikaris, P., Karniadakis, G. (2019).
-``Physics-informed neural networks: A deep learning framework for solving forward and inverse problems.''
-\textit{Journal of Computational Physics}, 378, 686-707.
-
-\end{thebibliography}
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
 
 \end{document}
-"""
+""")
 
-    with open(output_file, "w") as f:
-        f.write(latex)
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write("\n".join(latex))
 
-    print(f"[✓] LaTeX paper generated: {output_file}")
+    print(f"[OK] LaTeX paper generated: {output_file}")
 
 
-def generate_comparison_table(results: dict[str, Any], output_file: str) -> None:
-    """Generate detailed comparison table (CSV)."""
-
-    algorithms = ["GA", "PSO", "ACO", "GA-PSO Hybrid", "ACO-GA Hybrid"]
-    benchmarks = results.get("metadata", {}).get("benchmarks", [])
-
-    extracted = extract_algorithms(results, algorithms)
-
+def generate_comparison_csv(stats: dict[str, Any], output_file: str) -> None:
     import csv
 
     with open(output_file, "w", newline="") as f:
         writer = csv.writer(f)
+        writer.writerow(["Algorithm", "Mean L2", "Std L2", "Min L2", "Max L2", "Mean Runtime (s)", "Mean Diversity", "N Runs"])
+        for algo, s in sorted(stats.items(), key=lambda kv: kv[1]["mean_l2"]):
+            writer.writerow([
+                algo, f"{s['mean_l2']:.6f}", f"{s['std_l2']:.6f}", f"{s['min_l2']:.6f}", f"{s['max_l2']:.6f}",
+                f"{s['mean_time']:.2f}",
+                f"{s['mean_diversity']:.3f}" if not np.isnan(s["mean_diversity"]) else "n/a",
+                s["n_runs"],
+            ])
 
-        # Header
-        writer.writerow(["Benchmark", "Algorithm", "Mean L2", "Std L2", "Min L2", "Max L2", "Runs", "Mean Time (s)"])
-
-        # Data rows
-        for benchmark in benchmarks:
-            if benchmark not in extracted:
-                continue
-            for algo in algorithms:
-                if algo not in extracted[benchmark]:
-                    continue
-
-                stats = compute_statistics(extracted[benchmark][algo])
-                writer.writerow([
-                    benchmark,
-                    algo,
-                    f"{stats['mean_l2']:.6f}",
-                    f"{stats['std_l2']:.6f}",
-                    f"{stats['min_l2']:.6f}",
-                    f"{stats['max_l2']:.6f}",
-                    stats['count'],
-                    f"{stats['mean_time']:.2f}",
-                ])
-
-    print(f"[✓] Comparison table generated: {output_file}")
+    print(f"[OK] Comparison CSV generated: {output_file}")
 
 
 def main() -> None:
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Generate ACM-formatted paper from HPO results"
-    )
-    parser.add_argument(
-        "--results-dir",
-        default="outputs/manuscript_scope",
-        help="Directory containing hpo_comparison_results.json"
-    )
-    parser.add_argument(
-        "--output-paper",
-        default="outputs/nsys2026_paper.tex",
-        help="Output LaTeX file for ACM paper"
-    )
-    parser.add_argument(
-        "--output-table",
-        default="outputs/nsys2026_comparison.csv",
-        help="Output CSV file with detailed results"
-    )
-
+    parser = argparse.ArgumentParser(description="Generate ACM sigconf paper from NSYS 2026 HPO results")
+    parser.add_argument("--results-dir", default="outputs/nsys2026")
+    parser.add_argument("--output-paper", default=None, help="Default: <results-dir>/paper/nsys2026_paper.tex")
+    parser.add_argument("--output-table", default=None, help="Default: <results-dir>/paper/nsys2026_comparison.csv")
     args = parser.parse_args()
 
-    print("\n" + "="*70)
-    print("GENERATING ACM-FORMATTED PAPER FOR NSYS 2026")
-    print("="*70 + "\n")
+    output_paper = args.output_paper or os.path.join(args.results_dir, "paper", "nsys2026_paper.tex")
+    output_table = args.output_table or os.path.join(args.results_dir, "paper", "nsys2026_comparison.csv")
+    os.makedirs(os.path.dirname(output_paper), exist_ok=True)
+
+    print("\n" + "=" * 70)
+    print("GENERATING ACM SIGCONF PAPER FOR NSYS 2026")
+    print("=" * 70 + "\n")
 
     results = load_results(args.results_dir)
-    if not results:
+    stats = compute_algo_stats(results, ALGORITHMS)
+
+    if not stats:
+        print("[ERROR] No matching algorithm results found in raw_runs. "
+              "Did you run scripts/run_nsys2026_manuscript.py with GA/PSO/ACO/Fuzzy-* ?")
         return
 
-    os.makedirs(os.path.dirname(args.output_paper) or ".", exist_ok=True)
+    bib_src = project_root / "paper" / "references.bib"
+    bib_dst = os.path.join(os.path.dirname(output_paper), "references.bib")
+    if bib_src.exists():
+        shutil.copyfile(bib_src, bib_dst)
 
-    generate_latex_paper(results, args.output_paper)
-    generate_comparison_table(results, args.output_table)
+    generate_latex_paper(results, stats, output_paper, figures_rel="../plots")
+    generate_comparison_csv(stats, output_table)
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("ACM PAPER GENERATION COMPLETE")
-    print(f"LaTeX: {os.path.abspath(args.output_paper)}")
-    print(f"CSV:   {os.path.abspath(args.output_table)}")
+    print(f"LaTeX:      {os.path.abspath(output_paper)}")
+    print(f"References: {os.path.abspath(bib_dst)}")
+    print(f"CSV:        {os.path.abspath(output_table)}")
     print("\nNext steps:")
-    print("1. Compile LaTeX: pdflatex nsys2026_paper.tex")
-    print("2. Review PDF and adjust figures/tables as needed")
-    print("3. Submit to NSYS 2026 conference")
-    print("="*70 + "\n")
+    print(f"1. cd {os.path.dirname(output_paper)} && pdflatex nsys2026_paper.tex && bibtex nsys2026_paper && pdflatex nsys2026_paper.tex && pdflatex nsys2026_paper.tex")
+    print("2. Review the PDF - check every number against hpo_comparison_results.json before submitting")
+    print("=" * 70 + "\n")
 
 
 if __name__ == "__main__":

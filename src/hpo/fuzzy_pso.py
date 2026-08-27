@@ -121,6 +121,9 @@ def run_fuzzy_pso(
     best_metrics = train_pinn(best_cfg)
     best_metrics["history"] = history
     best_metrics["fuzzy_adaptations"] = fuzzy_adaptations
+    best_metrics["diversity_history"] = [
+        {"iteration": a["iteration"], "diversity": a["diversity"]} for a in fuzzy_adaptations
+    ]
     best_metrics["optimizer_name"] = "Fuzzy-PSO"
 
     ensure_dir(out_dir)

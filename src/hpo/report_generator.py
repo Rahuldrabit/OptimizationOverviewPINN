@@ -109,6 +109,44 @@ def generate_all_plots(results: dict[str, Any], output_dir: str) -> dict[str, st
     generated_files["convergence"] = conv_path
 
     # ----------------------------------------------------
+    # 1b. Diversity / Exploration Trajectory (generation-by-generation)
+    # ----------------------------------------------------
+    fig, axes = plt.subplots(rows, cols, figsize=(7 * cols, 5 * rows), squeeze=False)
+    fig.suptitle("Population/Swarm/Archive Diversity across Generations (Exploration Behavior)", fontsize=16, fontweight="bold", y=1.02)
+
+    any_diversity_data = False
+    for idx, bmark in enumerate(benchmarks):
+        r, c = divmod(idx, cols)
+        ax = axes[r, c]
+
+        for alg in algorithms:
+            traj = summary[bmark].get(alg, {}).get("mean_diversity_trajectory", [])
+            if traj:
+                any_diversity_data = True
+                gens = np.arange(len(traj))
+                color = COLOR_MAP.get(alg, "#333333")
+                style = STYLE_MAP.get(alg, "-")
+                ax.plot(gens, traj, label=alg, color=color, linestyle=style, linewidth=2.0)
+
+        ax.set_ylim(0, 1.0)
+        ax.set_title(f"Benchmark: {bmark.upper()}", fontsize=13, fontweight="bold")
+        ax.set_xlabel("Generation / Iteration", fontsize=11)
+        ax.set_ylabel("Normalized Diversity (0=converged, 1=max spread)", fontsize=10)
+        ax.grid(True, linestyle=":", alpha=0.6)
+        ax.legend(fontsize=8, loc="upper right")
+
+    for idx in range(n_bmarks, rows * cols):
+        r, c = divmod(idx, cols)
+        axes[r, c].set_visible(False)
+
+    plt.tight_layout()
+    div_path = os.path.join(output_dir, "diversity_exploration_trajectories.png")
+    plt.savefig(div_path, dpi=200, bbox_inches="tight")
+    plt.close()
+    if any_diversity_data:
+        generated_files["diversity"] = div_path
+
+    # ----------------------------------------------------
     # 2. Performance Error Distribution (Bar / Boxplot)
     # ----------------------------------------------------
     fig, ax = plt.subplots(figsize=(14, 6))
@@ -155,10 +193,15 @@ def generate_all_plots(results: dict[str, Any], output_dir: str) -> dict[str, st
     all_mean_errs = [rankings[a]["overall_mean_rel_l2"] for a in algorithms]
     all_stds = [rankings[a]["overall_mean_std"] for a in algorithms]
     all_times = [rankings[a]["overall_mean_runtime_sec"] for a in algorithms]
+    all_diversities = [
+        rankings[a].get("overall_mean_diversity", float("nan")) for a in algorithms
+        if not np.isnan(rankings[a].get("overall_mean_diversity", float("nan")))
+    ]
 
     min_err, max_err = min(all_mean_errs), max(all_mean_errs)
     min_std, max_std = min(all_stds), max(all_stds)
     min_t, max_t = min(all_times), max(all_times)
+    min_div, max_div = (min(all_diversities), max(all_diversities)) if all_diversities else (0.0, 1.0)
 
     # Select top 5 algorithms for clarity in radar chart
     top_algs = list(rankings.keys())[:6]
@@ -170,8 +213,13 @@ def generate_all_plots(results: dict[str, Any], output_dir: str) -> dict[str, st
         speed_score = 1.0 - 0.8 * (rankings[alg]["overall_mean_runtime_sec"] - min_t) / (max_t - min_t + 1e-12)
         # Stability score
         stab_score = 1.0 - 0.8 * (rankings[alg]["overall_mean_std"] - min_std) / (max_std - min_std + 1e-12)
-        # Exploration score (Hybrids & Fuzzy get bonus for adaptive mechanisms)
-        expl_score = 0.95 if "Hybrid" in alg else (0.85 if "Fuzzy" in alg else 0.65)
+        # Exploration score: measured mean population/archive/swarm diversity (compute_population_diversity),
+        # normalized in [0.2, 1.0] across algorithms - not an assumed per-category bonus.
+        alg_div = rankings[alg].get("overall_mean_diversity", float("nan"))
+        if np.isnan(alg_div):
+            expl_score = 0.5  # no diversity data recorded for this algorithm's search loop
+        else:
+            expl_score = 0.2 + 0.8 * (alg_div - min_div) / (max_div - min_div + 1e-12)
         # Robustness score (based on average rank)
         rob_score = 1.0 - 0.8 * (rankings[alg]["average_rank"] - 1.0) / (len(algorithms) - 1.0 + 1e-12)
 
@@ -244,9 +292,9 @@ def generate_markdown_report(results: dict[str, Any], plot_files: dict[str, str]
 
     # Identify winners
     best_overall_alg = list(rankings.keys())[0]
-    best_standalone_alg = next((a for a in rankings.keys() if a in ["GA", "PSO", "ACO", "GSA"]), "PSO")
-    best_fuzzy_alg = next((a for a in rankings.keys() if "Fuzzy" in a), "Fuzzy-PSO")
-    best_hybrid_alg = next((a for a in rankings.keys() if "Hybrid" in a), "ACO-GA Hybrid")
+    best_standalone_alg = next((a for a in rankings.keys() if a in ["GA", "PSO", "ACO", "GSA"]), None)
+    best_fuzzy_alg = next((a for a in rankings.keys() if "Fuzzy" in a), None)
+    best_hybrid_alg = next((a for a in rankings.keys() if "Hybrid" in a), None)
 
     report = []
     report.append("# Physics-Informed Neural Network (PINN) HPO Algorithm Investigation")
@@ -258,9 +306,13 @@ def generate_markdown_report(results: dict[str, Any], plot_files: dict[str, str]
 
     report.append("## 1. Executive Summary & Key Findings\n")
     report.append(f"> [!IMPORTANT]\n> **Overall Champion**: **{best_overall_alg}** achieved the lowest average rank ({rankings[best_overall_alg]['average_rank']:.2f}) and superior convergence stability across all evaluated physical benchmarks.")
-    report.append(f">\n> - **Best Standalone Metaheuristic**: **{best_standalone_alg}** (Average Rank: {rankings[best_standalone_alg]['average_rank']:.2f})")
-    report.append(f">\n> - **Best Fuzzy-Adaptive Optimizer**: **{best_fuzzy_alg}** (Average Rank: {rankings[best_fuzzy_alg]['average_rank']:.2f})")
-    report.append(f">\n> - **Best Hybrid Algorithm**: **{best_hybrid_alg}** (Average Rank: {rankings[best_hybrid_alg]['average_rank']:.2f})\n")
+    if best_standalone_alg is not None:
+        report.append(f">\n> - **Best Standalone Metaheuristic**: **{best_standalone_alg}** (Average Rank: {rankings[best_standalone_alg]['average_rank']:.2f})")
+    if best_fuzzy_alg is not None:
+        report.append(f">\n> - **Best Fuzzy-Adaptive Optimizer**: **{best_fuzzy_alg}** (Average Rank: {rankings[best_fuzzy_alg]['average_rank']:.2f})")
+    if best_hybrid_alg is not None:
+        report.append(f">\n> - **Best Hybrid Algorithm**: **{best_hybrid_alg}** (Average Rank: {rankings[best_hybrid_alg]['average_rank']:.2f})")
+    report.append("")
 
     report.append("### Key Scientific Takeaways:")
     report.append("1. **Hybrid Synergy**: Hybrid algorithms (especially **ACO-GA** and **PSO-GSA**) consistently outperform single standalone algorithms because they effectively separate the search into global exploration (gravitational force / pheromone diffusion) and rapid local exploitation (velocity memory / genetic recombination).")
@@ -272,14 +324,16 @@ def generate_markdown_report(results: dict[str, Any], plot_files: dict[str, str]
     report.append("   - **GA** excels at discrete architecture selection (layer counts, activation functions, optimizers).\n")
 
     report.append("## 2. Comprehensive Performance Ranking Matrix\n")
-    report.append("| Rank | Algorithm | Category | Avg Rank (Friedman) | Overall Mean Rel L2 | Rel L2 Std Dev | Mean Runtime (s) |")
-    report.append("| :--- | :--- | :--- | :--- | :--- | :--- | :--- |")
+    report.append("| Rank | Algorithm | Category | Avg Rank (Friedman) | Overall Mean Rel L2 | Rel L2 Std Dev | Mean Runtime (s) | Mean Diversity |")
+    report.append("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |")
 
     for rank_idx, (alg, data) in enumerate(rankings.items(), start=1):
         cat = "Hybrid" if "Hybrid" in alg else ("Fuzzy" if "Fuzzy" in alg else "Standalone")
         err_str = f"{data['overall_mean_rel_l2']:.6f}" if data['overall_mean_rel_l2'] >= 1e-4 else f"{data['overall_mean_rel_l2']:.2e}"
         std_str = f"{data['overall_mean_std']:.6f}" if data['overall_mean_std'] >= 1e-4 else f"{data['overall_mean_std']:.2e}"
-        report.append(f"| **#{rank_idx}** | **{alg}** | {cat} | {data['average_rank']:.2f} | `{err_str}` | `{std_str}` | {data['overall_mean_runtime_sec']:.2f}s |")
+        div_val = data.get("overall_mean_diversity", float("nan"))
+        div_str = f"{div_val:.3f}" if not np.isnan(div_val) else "n/a"
+        report.append(f"| **#{rank_idx}** | **{alg}** | {cat} | {data['average_rank']:.2f} | `{err_str}` | `{std_str}` | {data['overall_mean_runtime_sec']:.2f}s | {div_str} |")
 
     report.append("\n## 3. Visualizations & Analytical Charts\n")
 
@@ -287,6 +341,11 @@ def generate_markdown_report(results: dict[str, Any], plot_files: dict[str, str]
         report.append(f"### 3.1 Convergence Trajectories across Iterations\n")
         report.append(f"![Convergence Comparison]({os.path.abspath(plot_files['convergence'])})\n")
         report.append("*Figure 1: Mean convergence error trajectories across iterations for each benchmark (logarithmic scale). Hybrids and fuzzy variants show accelerated steep downward trajectories compared to classical baselines.*\n")
+
+    if "diversity" in plot_files:
+        report.append(f"### 3.1b Diversity / Exploration Trajectories\n")
+        report.append(f"![Diversity Trajectories]({os.path.abspath(plot_files['diversity'])})\n")
+        report.append("*Figure 1b: Measured population/swarm/archive diversity per generation (via `compute_population_diversity`), not an assumed category bonus. A steady early decline followed by a plateau indicates the algorithm balances exploration (early diversity) against exploitation (late convergence).*\n")
 
     if "performance" in plot_files:
         report.append(f"### 3.2 Error Distributions by PDE Benchmark\n")

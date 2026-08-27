@@ -136,6 +136,9 @@ def run_fuzzy_ga(
     best_metrics = train_pinn(best_cfg)
     best_metrics["history"] = history
     best_metrics["fuzzy_adaptations"] = fuzzy_adaptations
+    best_metrics["diversity_history"] = [
+        {"generation": a["generation"], "diversity": a["diversity"]} for a in fuzzy_adaptations
+    ]
     best_metrics["optimizer_name"] = "Fuzzy-GA"
 
     ensure_dir(out_dir)

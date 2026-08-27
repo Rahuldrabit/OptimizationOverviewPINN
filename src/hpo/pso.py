@@ -16,6 +16,7 @@ try:
         clip_int,
         decode_solution,
     )
+    from .fuzzy_controller import compute_population_diversity
 except (ImportError, ValueError):
     from training.pinn_trainer import TrainConfig, train_pinn
     from utils import ensure_dir, save_json
@@ -27,6 +28,7 @@ except (ImportError, ValueError):
         clip_int,
         decode_solution,
     )
+    from hpo.fuzzy_controller import compute_population_diversity
 
 
 
@@ -61,7 +63,7 @@ def _decode_position(x: np.ndarray, space: SearchSpace, base: TrainConfig) -> Tr
 def _pso_numpy(
     func, lb: np.ndarray, ub: np.ndarray, swarmsize: int = 12, maxiter: int = 8,
     w: float = 0.7, c1: float = 1.5, c2: float = 1.5, seed: int = 0
-) -> tuple[np.ndarray, float, list[float]]:
+) -> tuple[np.ndarray, float, list[float], list[dict[str, Any]]]:
     rng = np.random.default_rng(seed)
     dim = len(lb)
     v_max = (ub - lb) * 0.2
@@ -78,8 +80,9 @@ def _pso_numpy(
     gbest = P[best_idx].copy()
     gbest_fit = float(P_fit[best_idx])
     history = [gbest_fit]
+    diversity_history = [{"iteration": 0, "diversity": compute_population_diversity(X, lb, ub)}]
 
-    for _ in range(maxiter):
+    for it in range(1, int(maxiter) + 1):
         r1 = rng.random(size=(swarmsize, dim))
         r2 = rng.random(size=(swarmsize, dim))
 
@@ -97,8 +100,9 @@ def _pso_numpy(
                     gbest = X[i].copy()
 
         history.append(gbest_fit)
+        diversity_history.append({"iteration": it, "diversity": compute_population_diversity(X, lb, ub)})
 
-    return gbest, gbest_fit, history
+    return gbest, gbest_fit, history, diversity_history
 
 
 def run_pso(
@@ -122,12 +126,14 @@ def run_pso(
         from pyswarm import pso
         best_x, best_f = pso(objective, lb, ub, swarmsize=int(swarmsize), maxiter=int(maxiter))
         history = [float(best_f)]
+        diversity_history: list[dict[str, Any]] = []  # pyswarm 0.6 exposes no per-iteration swarm hook
     except ImportError:
-        best_x, best_f, history = _pso_numpy(objective, lb, ub, swarmsize=int(swarmsize), maxiter=int(maxiter), seed=seed)
+        best_x, best_f, history, diversity_history = _pso_numpy(objective, lb, ub, swarmsize=int(swarmsize), maxiter=int(maxiter), seed=seed)
 
     best_cfg = _decode_position(np.asarray(best_x), space, base)
     best_metrics = train_pinn(best_cfg)
     best_metrics["history"] = history
+    best_metrics["diversity_history"] = diversity_history
     best_metrics["optimizer_name"] = "PSO"
 
     ensure_dir(out_dir)
