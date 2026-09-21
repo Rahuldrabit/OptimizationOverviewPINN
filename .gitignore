@@ -1,4 +1,6 @@
-.venv/__pycache__/
+.venv/
+__pycache__/
+*.pyc
 outputs/
 .pytest_cache/
 _debug_chunk2.txt

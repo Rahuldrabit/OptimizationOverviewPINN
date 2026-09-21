@@ -158,21 +158,23 @@ d:/OptimizationOverviewPINN/
 
 ## 🚀 Execution Guide (PowerShell / Command Line)
 
-### 1. Full Reproducibility & Master Benchmark Grids
+### 1. Unified Master Execution Suite (Full Manuscript Benchmark & Ablation Studies)
 ```powershell
-# Master one-command reproduction (full comparison grid + convergence speed + LaTeX tables)
+# Master one-command execution: runs full benchmark grid (all 13 algorithms),
+# all 4 ablation studies, generates publication plots, and exports LaTeX tables
+python scripts\run_final_manuscript.py
+
+# Quick smoke test mode (runs all algorithms and ablations with reduced budgets in minutes)
+python scripts\run_final_manuscript.py --quick
+
+# Custom worker parallelism or selective stages
+python scripts\run_final_manuscript.py --workers 4
+python scripts\run_final_manuscript.py --skip-ablation   # Run benchmark grid only
+python scripts\run_final_manuscript.py --skip-grid       # Run ablation studies only
+
+# One-command full reproducibility pipeline (grid + ablations + convergence speed benchmark)
 python scripts\reproduce_all.py
 python scripts\reproduce_all.py --quick
-
-# Full multi-algorithm comparison grid (13 algorithms across 4 PDEs, 3 seeds)
-python scripts\run_full_comparison.py
-python scripts\run_full_comparison.py --quick
-
-# Focused 7-algorithm manuscript scope (56 runs, 2 seeds)
-python scripts\run_manuscript_scope.py
-
-# Dedicated high-resolution convergence speed & trajectory benchmark
-python scripts\test_convergence_speed.py --evals 60
 ```
 
 ### 2. Novel Proposed Optimizers (F-MAGSO & PDE-Robust-DE)

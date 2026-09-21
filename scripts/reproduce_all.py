@@ -25,11 +25,11 @@ def main() -> None:
 
     python_exe = sys.executable
 
-    # 1. Multi-PDE Comparison Grid
-    quick_flag = ["--quick"] if args.quick else []
+    # 1. Final Manuscript Benchmark Grid + Ablation Studies + LaTeX Tables
+    quick_flag = ["--quick"] if args.quick else ["--full"]
     run_command(
-        [python_exe, "scripts/run_full_comparison.py"] + quick_flag,
-        "Running 14-Algorithm Multi-PDE Benchmark Grid (ODE, Heat, Burgers, Wave)"
+        [python_exe, "scripts/run_final_manuscript.py"] + quick_flag,
+        "Running Unified Final Manuscript Pipeline (Benchmark Grid + Ablations + LaTeX Export)"
     )
 
     # 2. Convergence Speed Benchmark
@@ -39,13 +39,7 @@ def main() -> None:
         "Running High-Resolution Convergence Speed & Trajectory Benchmark"
     )
 
-    # 3. Export LaTeX Tables
-    run_command(
-        [python_exe, "scripts/export_latex_tables.py"],
-        "Exporting Publication-Ready LaTeX Tables"
-    )
-
-    print(f"\n{'='*70}\n[SUCCESS] ALL BENCHMARKS, PLOTS, AND LATEX TABLES REPRODUCED SUCCESSFULLY!\n{'='*70}\n")
+    print(f"\n{'='*70}\n[SUCCESS] ALL BENCHMARKS, ABLATIONS, PLOTS, AND LATEX TABLES REPRODUCED SUCCESSFULLY!\n{'='*70}\n")
 
 
 if __name__ == "__main__":

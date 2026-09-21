@@ -1,15 +1,12 @@
-"""Generate an ACM sigconf (two-column) paper comparing GA, PSO, ACO, Fuzzy-GA,
-Fuzzy-PSO, and Fuzzy-ACO for PINN hyperparameter optimization, for NSYS 2026.
+"""Generate an ACM sigconf (two-column) paper comparing optimization algorithms
+for PINN hyperparameter optimization.
 
-Reads outputs/nsys2026/hpo_comparison_results.json (produced by
-scripts/run_nsys2026_manuscript.py) and reports only numbers that are actually
-in that file - real per-generation convergence and diversity/exploration
-trajectories (src/hpo/{ga,pso,aco,fuzzy_ga,fuzzy_pso,fuzzy_aco}.py), not
-assumed or hardcoded scores. See MEMORY note "paper-not-publishable": do not
-add claims here that the underlying JSON does not support.
+Reads outputs/final_manuscript/hpo_comparison_results.json (or outputs/comparison/)
+and reports only numbers that are actually in that file - real per-generation
+convergence and diversity/exploration trajectories, not assumed or hardcoded scores.
 
 Usage:
-    python scripts/generate_acm_paper.py --results-dir outputs/nsys2026
+    python scripts/generate_acm_paper.py --results-dir outputs/final_manuscript
 """
 
 from __future__ import annotations
@@ -36,7 +33,7 @@ def load_results(results_dir: str) -> dict[str, Any]:
     if not os.path.exists(results_file):
         raise FileNotFoundError(
             f"Results file not found: {results_file}\n"
-            f"Run scripts/run_nsys2026_manuscript.py first to generate it."
+            f"Run scripts/run_final_manuscript.py first to generate it."
         )
     with open(results_file, "r") as f:
         return json.load(f)
@@ -283,8 +280,8 @@ weight, initial-condition loss weight, and number of collocation points.
     latex.append(r"""
 \section{Reproducibility}
 All code is available at \texttt{https://github.com/Rahuldrabit/OptimizationOverviewPINN}. Every number
-in this paper is generated directly from \texttt{outputs/nsys2026/hpo\_comparison\_results.json},
-produced by \texttt{scripts/run\_nsys2026\_manuscript.py}.
+in this paper is generated directly from \texttt{hpo\_comparison\_results.json},
+produced by \texttt{scripts/run\_final\_manuscript.py}.
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{references}
@@ -316,18 +313,23 @@ def generate_comparison_csv(stats: dict[str, Any], output_file: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate ACM sigconf paper from NSYS 2026 HPO results")
-    parser.add_argument("--results-dir", default="outputs/nsys2026")
-    parser.add_argument("--output-paper", default=None, help="Default: <results-dir>/paper/nsys2026_paper.tex")
-    parser.add_argument("--output-table", default=None, help="Default: <results-dir>/paper/nsys2026_comparison.csv")
+    parser = argparse.ArgumentParser(description="Generate ACM sigconf paper from PINN HPO benchmark results")
+    parser.add_argument("--results-dir", default="outputs/final_manuscript")
+    parser.add_argument("--output-paper", default=None, help="Default: <results-dir>/paper/manuscript_paper.tex")
+    parser.add_argument("--output-table", default=None, help="Default: <results-dir>/paper/manuscript_comparison.csv")
     args = parser.parse_args()
 
-    output_paper = args.output_paper or os.path.join(args.results_dir, "paper", "nsys2026_paper.tex")
-    output_table = args.output_table or os.path.join(args.results_dir, "paper", "nsys2026_comparison.csv")
+    # Fall back to outputs/comparison if final_manuscript results not found yet
+    if not os.path.exists(os.path.join(args.results_dir, "hpo_comparison_results.json")):
+        if os.path.exists("outputs/comparison/hpo_comparison_results.json"):
+            args.results_dir = "outputs/comparison"
+
+    output_paper = args.output_paper or os.path.join(args.results_dir, "paper", "manuscript_paper.tex")
+    output_table = args.output_table or os.path.join(args.results_dir, "paper", "manuscript_comparison.csv")
     os.makedirs(os.path.dirname(output_paper), exist_ok=True)
 
     print("\n" + "=" * 70)
-    print("GENERATING ACM SIGCONF PAPER FOR NSYS 2026")
+    print("GENERATING ACM SIGCONF PAPER FROM HPO RESULTS")
     print("=" * 70 + "\n")
 
     results = load_results(args.results_dir)
@@ -335,7 +337,7 @@ def main() -> None:
 
     if not stats:
         print("[ERROR] No matching algorithm results found in raw_runs. "
-              "Did you run scripts/run_nsys2026_manuscript.py with GA/PSO/ACO/Fuzzy-* ?")
+              "Did you run scripts/run_final_manuscript.py?")
         return
 
     bib_src = project_root / "paper" / "references.bib"
@@ -352,7 +354,7 @@ def main() -> None:
     print(f"References: {os.path.abspath(bib_dst)}")
     print(f"CSV:        {os.path.abspath(output_table)}")
     print("\nNext steps:")
-    print(f"1. cd {os.path.dirname(output_paper)} && pdflatex nsys2026_paper.tex && bibtex nsys2026_paper && pdflatex nsys2026_paper.tex && pdflatex nsys2026_paper.tex")
+    print(f"1. cd {os.path.dirname(output_paper)} && pdflatex manuscript_paper.tex && bibtex manuscript_paper && pdflatex manuscript_paper.tex && pdflatex manuscript_paper.tex")
     print("2. Review the PDF - check every number against hpo_comparison_results.json before submitting")
     print("=" * 70 + "\n")
 

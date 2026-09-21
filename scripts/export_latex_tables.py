@@ -154,6 +154,7 @@ def sync_figures_to_paper() -> None:
     ensure_dir(str(paper_fig_dir))
 
     source_dirs = [
+        project_root / "outputs" / "final_manuscript" / "plots",
         project_root / "outputs" / "comparison" / "plots",
         project_root / "outputs" / "speed_benchmark" / "plots",
     ]
@@ -170,7 +171,9 @@ def sync_figures_to_paper() -> None:
 
 
 def main() -> None:
-    results_json = project_root / "outputs" / "comparison" / "hpo_comparison_results.json"
+    results_json = project_root / "outputs" / "final_manuscript" / "hpo_comparison_results.json"
+    if not results_json.exists():
+        results_json = project_root / "outputs" / "comparison" / "hpo_comparison_results.json"
     latex_dir = project_root / "paper" / "tables"
     ensure_dir(str(latex_dir))
 
