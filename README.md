@@ -158,17 +158,74 @@ d:/OptimizationOverviewPINN/
 
 ## 🚀 Execution Guide (PowerShell / Command Line)
 
-### 1. Run Complete Investigation Suite & Generate Plots + Report
+### 1. Full Reproducibility & Master Benchmark Grids
 ```powershell
-# Full comparison across 4 benchmarks (ODE, Heat, Burgers, Wave) with 3 seeds
-python scripts\run_full_comparison.py
+# Master one-command reproduction (full comparison grid + convergence speed + LaTeX tables)
+python scripts\reproduce_all.py
+python scripts\reproduce_all.py --quick
 
-# Rapid smoke test mode
+# Full multi-algorithm comparison grid (13 algorithms across 4 PDEs, 3 seeds)
+python scripts\run_full_comparison.py
 python scripts\run_full_comparison.py --quick
+
+# Focused 7-algorithm manuscript scope (56 runs, 2 seeds)
+python scripts\run_manuscript_scope.py
+
+# Dedicated high-resolution convergence speed & trajectory benchmark
+python scripts\test_convergence_speed.py --evals 60
 ```
 
-### 2. Run Individual Optimizer Categories
+### 2. Novel Proposed Optimizers (F-MAGSO & PDE-Robust-DE)
+```powershell
+# Run Novel F-MAGSO (Fuzzy-Guided Multi-Stage Adaptive Gravitational Swarm Optimizer)
+python scripts\run_f_magso.py ode
+python scripts\run_f_magso.py heat --evals 80 --steps 1200
+python scripts\run_f_magso.py burgers --evals 80 --steps 1200
+python scripts\run_f_magso.py wave --evals 80 --steps 1200
 
+# Run Novel PDE-Robust-DE (Physics-Informed Differential Evolution with Adaptive Scaling)
+python scripts\run_pde_robust_de.py ode
+python scripts\run_pde_robust_de.py heat --generations 10 --pop-size 20 --steps 1200
+python scripts\run_pde_robust_de.py burgers --generations 10 --pop-size 20 --steps 1200
+python scripts\run_pde_robust_de.py wave --generations 10 --pop-size 20 --steps 1200
+python scripts\run_pde_robust_de.py ode --quick
+```
+
+### 3. Hybrid Metaheuristics
+```powershell
+# Run all three hybrids (GA-PSO, PSO-GSA, ACO-GA)
+python scripts\run_hybrids.py ode --method all
+python scripts\run_hybrids.py burgers --method all
+
+# Run individual hybrid metaheuristics
+python scripts\run_hybrids.py ode --method ga_pso
+python scripts\run_hybrids.py heat --method pso_gsa
+python scripts\run_hybrids.py wave --method aco_ga
+```
+
+### 4. Systematic Ablation Studies
+```powershell
+# 1. F-MAGSO component ablation (Full vs w/o FLC vs w/o GSA vs w/o GA-Schema vs w/o Multi-Stage)
+python scripts\run_ablation.py ode --study f_magso
+python scripts\run_ablation.py ode --study f_magso --quick
+
+# 2. PDE-Robust-DE mechanics ablation (Full Adaptive vs Fixed DE vs Boundary Clipping)
+python scripts\run_ablation.py ode --study pde_robust_de
+python scripts\run_ablation.py ode --study pde_robust_de --quick
+
+# 3. Fuzzy dynamic adaptation ablation (PSO vs Fuzzy-PSO, GA vs Fuzzy-GA, ACO vs Fuzzy-ACO)
+python scripts\run_ablation.py ode --study fuzzy
+python scripts\run_ablation.py ode --study fuzzy --quick
+
+# 4. Hybrid synergy ablation (GA-PSO vs GA vs PSO; PSO-GSA vs PSO vs GSA; ACO-GA vs ACO vs GA)
+python scripts\run_ablation.py ode --study hybrids
+python scripts\run_ablation.py ode --study hybrids --quick
+
+# Run all ablation studies in one pass
+python scripts\run_ablation.py ode --study all --quick
+```
+
+### 5. Standalone & Fuzzy-Adaptive Optimizers
 ```powershell
 # Standalone optimizers
 python scripts\run_ga.py ode
@@ -179,13 +236,13 @@ python scripts\run_gsa.py ode
 # Fuzzy-adaptive optimizers
 python scripts\run_fuzzy.py ode --method all
 python scripts\run_fuzzy.py heat --method pso
-
-# Hybrid metaheuristics
-python scripts\run_hybrids.py ode --method all
-python scripts\run_hybrids.py burgers --method pso_gsa
 ```
 
-### 3. Run Test Suite
+### 6. Test Suite & Validation
 ```powershell
+# Run comprehensive unit test suite
 python scripts\run_tests.py
+
+# Cross-validate GA genetic operators against standard DEAP framework
+python scripts\validate_ga_with_deap.py
 ```

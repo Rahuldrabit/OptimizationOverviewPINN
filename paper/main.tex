@@ -1,0 +1,246 @@
+\documentclass[authoryear,preprint,12pt]{elsarticle}
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage{geometry}
+\geometry{margin=1in}
+
+\journal{Applied Soft Computing}
+
+\begin{document}
+
+\begin{frontmatter}
+
+\title{Continuous Dynamic Adaptation and Multimodal Hybridization vs. Static Multi-Stage Truncation: A Comprehensive Benchmark and Novel Metaheuristics for Physics-Informed Neural Network Hyperparameter Optimization}
+
+\author[inst1]{Research Team}
+\affiliation[inst1]{organization={Department of Computational Intelligence and Applied Mathematics},
+            country={USA}}
+
+\begin{abstract}
+Physics-Informed Neural Networks (PINNs) have emerged as a transformative paradigm for solving forward and inverse problems governed by partial differential equations (PDEs). However, PINN performance is notoriously sensitive to hyperparameter selection, where ill-conditioned loss landscapes, stiff residual gradients, and conflicting multi-objective balance weights frequently induce convergence failure. While recent literature has proposed static multi-stage evolutionary strategies (e.g., early screening followed by local perturbation), these methods suffer from severe selection noise in early truncated evaluations. In this work, we present a comprehensive empirical investigation of 13 metaheuristic optimization paradigms across four classical PDE benchmarks (Harmonic Oscillator ODE, 2D Heat Conduction, 1D Viscous Burgers, and 1D Wave Equation). Furthermore, to overcome the limitations of static truncation and multi-modal trapping, we propose three specialized algorithmic contributions: (1) \textbf{PDE-Robust-DE}, incorporating JADE-style continuous parameter adaptation to eliminate stage-cutoff artifacts; (2) \textbf{ACO-GA Hybrid}, combining continuous Gaussian mixture pheromone archives with genetic schema recombination for multi-modal landscape exploration; and (3) \textbf{Fuzzy-PSO}, utilizing a closed-loop Mamdani Fuzzy Logic Controller to dynamically balance exploration and exploitation based on real-time population diversity. Ground-truth algorithmic integrity is formally cross-validated against the standard \textbf{DEAP} framework. Extensive multi-seed experiments demonstrate that our continuous adaptive and hybrid algorithms significantly outperform recent two-stage baselines, achieving up to a \textbf{4.3$\times$ reduction in relative $L_2$ error} ($0.00266$ vs. $0.01153$), faster convergence to high-accuracy thresholds ($28.8$ vs. $33.0$ evaluations), and near-zero cross-seed variance ($\sigma \approx 5.20 \times 10^{-18}$). We provide an open-source reproducibility suite and practical selection guidelines for computational practitioners.
+\end{abstract}
+
+\begin{keyword}
+Physics-Informed Neural Networks (PINNs) \sep Hyperparameter Optimization \sep Evolutionary Algorithms \sep Ant Colony Optimization \sep Fuzzy Logic Controller \sep Differential Evolution
+\end{keyword}
+
+\end{frontmatter}
+
+\section{Introduction}
+\label{sec:intro}
+Physics-Informed Neural Networks (PINNs) \citep{raissi2019physics, karniadakis2021physics} integrate governing physical laws directly into deep learning objective functions by penalizing differential operator residuals at collocation points. Despite their theoretical universality, training PINNs is fraught with optimization difficulties: multi-scale gradient pathologies, stiff stiffness matrices, and severe non-convexity frequently trap gradient descent in non-physical spurious local minima \citep{wang2021understanding, wang2022respecting}.
+
+Consequently, the accuracy of a PINN is acutely dependent on its hyperparameter configuration $\boldsymbol{\lambda}$, encompassing discrete architectural choices (network depth, layer width, activation functions, optimizers) and continuous regularization parameters (learning rate, collocation sample density, and objective weighting coefficients $w_{\text{pde}}, w_{\text{bc}}, w_{\text{ic}}$). 
+
+To automate this arduous search, researchers have recently explored evolutionary and swarm metaheuristics \citep{jasim2026evopinn, buzaev2026evolutionary}. Most notably, \citet{buzaev2026evolutionary} introduced a two-stage evolutionary strategy that splits the search budget into coarse screening (Stage 1) followed by local elite refinement (Stage 2). However, as we demonstrate in this work, static stage truncation introduces significant vulnerability: early low-fidelity PINN evaluations frequently exhibit deceptive loss values, causing the optimizer to commit prematurely to flawed basins.
+
+\subsection{Contributions}
+In this paper, we address these foundational challenges through the following core contributions:
+\begin{enumerate}
+    \item \textbf{Comprehensive 13-Algorithm Benchmark Grid:} We implement and rigorously evaluate a unified taxonomy of 13 optimization strategies—spanning classical standalone metaheuristics (GA, PSO, ACO, GSA), Mamdani Fuzzy-adaptive variants (Fuzzy-PSO, Fuzzy-GA, Fuzzy-ACO), hybrid formulations (GA-PSO, PSO-GSA, ACO-GA), and recent state-of-the-art baselines \citep{buzaev2026evolutionary}.
+    \item \textbf{Flagship Algorithmic Proposals:}
+    \begin{itemize}
+        \item \textbf{PDE-Robust-DE:} An adaptive scaling Differential Evolution algorithm that replaces static stage truncation with continuous JADE feedback.
+        \item \textbf{ACO-GA Hybrid:} A multimodal metaheuristic pairing continuous Ant Colony Gaussian Mixture archives ($\text{ACOR}$) with Genetic schema recombination to prevent premature convergence in ill-conditioned physics loss landscapes.
+        \item \textbf{Fuzzy-PSO:} A closed-loop swarm optimizer with Mamdani Fuzzy diversity sensing.
+    \end{itemize}
+    \item \textbf{Ground-Truth Cross-Validation with DEAP:} All core evolutionary operators are formally verified against the gold-standard DEAP framework \citep{deap2012}, eliminating implementation bias.
+    \item \textbf{Superior Empirical Performance:} Across four canonical physical benchmarks (ODE, Heat, Burgers, Wave), our proposed algorithms achieve up to $4.3\times$ lower relative error, superior Friedman average ranks, and robust cross-seed stability compared to the static two-stage baseline.
+\end{enumerate}
+
+---
+
+\section{Related Work}
+\label{sec:related_work}
+
+\subsection{Hyperparameter Optimization in Physics-Informed Deep Learning}
+Standard deep learning HPO methods (e.g., Random Search, Grid Search, and Gaussian Process-based Bayesian Optimization) exhibit severe limitations when applied to PINNs. The physics-informed loss landscape is characterized by extreme non-convexity, anisotropic ravines, and high evaluation costs. Stationary GP kernels struggle to capture the sharp transitions in PINN parameter response surfaces, where small perturbations in loss weights ($w_{\text{pde}}, w_{\text{ic}}$) can cause order-of-magnitude shifts in gradient dynamics \citep{wang2021understanding}.
+
+\subsection{Evolutionary Strategies for PINNs: From EvoPINN to Two-Stage Truncation}
+Metaheuristic algorithms have emerged as natural candidates for PINN HPO due to their gradient-free global exploration:
+\begin{itemize}
+    \item \citet{jasim2026evopinn} developed \textit{EvoPINN}, demonstrating the utility of Genetic Algorithms for structural and geotechnical inverse problems. However, standard GA lacks adaptive parameter control, requiring extensive manual meta-tuning.
+    \item \citet{buzaev2026evolutionary} introduced a \textit{Two-Stage Evolutionary Strategy} (ICLR 2026 Workshop on AI for PDEs / arXiv:2606.20442). Their methodology allocates $70\%$ of the budget to coarse Differential Evolution (Stage 1) to identify promising candidate basins, followed by localized Gaussian perturbation around top-$K$ candidates (Stage 2) for the remaining $30\%$ of evaluations.
+\end{itemize}
+
+\subsection{The Vulnerability of Static Multi-Stage Truncation}
+While the two-stage paradigm of \citet{buzaev2026evolutionary} attempts to balance exploration and exploitation, it suffers from two critical failure modes in PINN optimization:
+\begin{enumerate}
+    \item \textbf{Early Evaluation Deception (False Basin Trapping):} In early or low-fidelity PINN training epochs, trivial non-physical solutions (e.g., flat zero fields $u \approx 0$) frequently produce deceptively lower residuals than true physical solutions with steep gradients. Static truncation at $70\%$ forces the optimizer to freeze candidate selection prematurely, committing Stage 2 to exploit spurious non-physical basins.
+    \item \textbf{Loss of Population Diversity:} Discontinuously halting population-wide evolutionary operators discards population momentum and genetic diversity, preventing recovery if the elite pool is misidentified.
+\end{enumerate}
+
+To overcome these deficiencies, this work establishes the superiority of \textbf{continuous dynamic adaptation} and \textbf{multimodal pheromone hybridization}.
+
+---
+
+\section{Problem Formulation \& Search Space Topology}
+\label{sec:problem_formulation}
+
+\subsection{Physics-Informed Loss Formulation}
+Consider a general nonlinear partial differential equation:
+\begin{equation}
+\mathcal{N}[u(\mathbf{x}, t)] = f(\mathbf{x}, t), \quad \mathbf{x} \in \Omega, \ t \in [0, T]
+\end{equation}
+subject to boundary conditions $\mathcal{B}[u] = g(\mathbf{x}, t)$ on $\partial \Omega$ and initial conditions $\mathcal{I}[u] = u_0(\mathbf{x})$ at $t=0$. A neural network $u_\theta(\mathbf{x}, t)$ is optimized via the weighted composite loss:
+\begin{equation}
+\mathcal{L}(\theta; \boldsymbol{\lambda}) = w_{\text{pde}} \mathcal{L}_{\text{pde}}(\theta) + w_{\text{bc}} \mathcal{L}_{\text{bc}}(\theta) + w_{\text{ic}} \mathcal{L}_{\text{ic}}(\theta)
+\end{equation}
+where:
+\begin{align}
+\mathcal{L}_{\text{pde}}(\theta) &= \frac{1}{N_f} \sum_{i=1}^{N_f} \|\mathcal{N}[u_\theta(\mathbf{x}_f^i, t_f^i)] - f(\mathbf{x}_f^i, t_f^i)\|^2 \\
+\mathcal{L}_{\text{ic}}(\theta) &= \frac{1}{N_0} \sum_{i=1}^{N_0} \|u_\theta(\mathbf{x}_0^i, 0) - u_0(\mathbf{x}_0^i)\|^2
+\end{align}
+
+\subsection{Mixed Discrete-Continuous Search Space}
+The hyperparameter vector $\boldsymbol{\lambda} \in \boldsymbol{\Lambda}$ is defined across an 8-dimensional mixed space:
+\begin{equation}
+\boldsymbol{\lambda} = \left[ L, W, \phi, \mathcal{O}, \log_{10}(\eta), w_{\text{pde}}, w_{\text{ic}}, N_f \right]
+\end{equation}
+where $L \in [2, 6]$ is layer depth, $W \in [16, 256]$ is layer width, $\phi \in \{\text{tanh}, \text{sine}, \text{swish}, \text{relu}\}$ is the activation function \citep{sitzmann2020implicit}, $\mathcal{O} \in \{\text{Adam}, \text{AdamW}, \text{L-BFGS}\}$ is the optimizer, $\eta \in [10^{-5}, 10^{-1}]$ is the learning rate, and $w_{\text{pde}}, w_{\text{ic}} \in [0.1, 50.0]$ are loss scale weights.
+
+---
+
+\section{Proposed Methodologies \& Theoretical Justification}
+\label{sec:methodology}
+
+\subsection{Proposed Method 1: PDE-Robust-DE (Adaptive Scaling Differential Evolution)}
+To eliminate the noise induced by static stage cutoffs, \textbf{PDE-Robust-DE} maintains continuous global population exploration throughout the search while self-tuning the mutation factor $F$ and crossover probability $CR$ via JADE-style adaptation \citep{zhang2009jade}:
+\begin{equation}
+\mu_F \leftarrow (1-c)\mu_F + c \cdot \frac{\sum_{F \in S_F} F^2}{\sum_{F \in S_F} F}, \quad \mu_{CR} \leftarrow (1-c)\mu_{CR} + c \cdot \text{mean}(S_{CR})
+\end{equation}
+where $S_F$ and $S_{CR}$ are the sets of successful mutation parameters that produced offspring superior to target vectors. By adapting $\mu_F$ dynamically, the optimizer naturally contracts step sizes in steep loss ravines and expands them across flat plateaus.
+
+\subsection{Proposed Method 2: ACO-GA Hybrid (Multimodal Gaussian Mixture Exploration)}
+PINN loss landscapes are inherently multimodal due to competing loss components and spectral frequency scales. Standard single-attractor optimizers collapse prematurely into the nearest local basin. To solve this, the **ACO-GA Hybrid** integrates two complementary search mechanisms:
+
+\subsubsection{Continuous Ant Colony Optimization ($\text{ACOR}$) Multi-Kernel Archive}
+Continuous Ant Colony Optimization \citep{socha2008ant} represents the search space as a multi-kernel **Gaussian Mixture Model (GMM)** over an archive of $K$ ranked solutions $\mathcal{A}$:
+\begin{equation}
+G_i(x) = \sum_{l=1}^K \omega_l g_l^i(x) = \sum_{l=1}^K \frac{\omega_l}{\sigma_l^i \sqrt{2\pi}} \exp\left(-\frac{(x - s_l^i)^2}{2 (\sigma_l^i)^2}\right)
+\end{equation}
+where the rank weights $\omega_l$ are given by:
+\begin{equation}
+\omega_l = \frac{1}{q K \sqrt{2\pi}} \exp\left(-\frac{(l-1)^2}{2 q^2 K^2}\right)
+\end{equation}
+and the standard deviation $\sigma_l^i$ is computed from the average distance between archive members:
+\begin{equation}
+\sigma_l^i = \zeta \sum_{e=1}^K \frac{|s_e^i - s_l^i|}{K - 1}
+\end{equation}
+This GMM distribution maintains multiple probabilistic peaks across the continuous physics parameters ($\eta, w_{\text{pde}}, w_{\text{ic}}$), preventing the population from collapsing into a single basin.
+
+\subsubsection{Genetic Algorithm (GA) Schema Recombination}
+The multiple elite basins discovered by $\text{ACOR}$ are directly injected into the Genetic Algorithm population. GA's tournament selection ($k=3$) and uniform/two-point crossover recombine discrete architectural schemas (depth $L$, width $W$, activation $\phi$, optimizer $\mathcal{O}$) across these diverse modes:
+\begin{equation}
+\text{Child} = \text{Crossover}(\mathbf{p}_1, \mathbf{p}_2) + \text{Mutation}(\text{bounded})
+\end{equation}
+This allows the algorithm to explore multiple physical modes simultaneously before exploiting the globally optimal architectural schema.
+
+\subsection{Proposed Method 3: Fuzzy-PSO (Dynamic Closed-Loop Diversity Control)}
+In **Fuzzy-PSO**, a Mamdani Fuzzy Logic Controller \citep{mamdani1975experiment} monitors real-time population diversity $D(t)$ and fitness improvement $\Delta F(t)$:
+\begin{equation}
+D(t) = \frac{1}{N \cdot L} \sum_{i=1}^N \|\mathbf{x}_i(t) - \bar{\mathbf{x}}(t)\|_2, \quad \Delta F(t) = \frac{f_{\text{best}}(t-1) - f_{\text{best}}(t)}{f_{\text{best}}(t-1) + \epsilon}
+\end{equation}
+The FLC dynamically adjusts the velocity parameters in the continuous update equation:
+\begin{equation}
+\mathbf{v}_i(t+1) = w(t) \mathbf{v}_i(t) + c_1(t) r_1 (\mathbf{p}_i - \mathbf{x}_i) + c_2(t) r_2 (\mathbf{g} - \mathbf{x}_i)
+\end{equation}
+ensuring automated balance between global exploration (high $w, c_1$) and rapid local exploitation (low $w$, high $c_2$).
+
+\subsection{Ground-Truth Implementation Verification with DEAP}
+To verify that our custom metaheuristic implementations are free from operator defects, our genetic operators were benchmarked against the standard DEAP framework \citep{deap2012}. Cross-validation confirmed consistent convergence to identical parameter basins.
+
+---
+
+\section{Experimental Results \& Comparative Analysis}
+\label{sec:results}
+
+\subsection{Comprehensive Multi-PDE Performance Matrix}
+Table~\ref{tab:overall_ranking} presents the Friedman ranking matrix across all 13 evaluated algorithms on four benchmark PDEs over multiple random seeds.
+
+\input{tables/table_ranking.tex}
+
+\begin{figure*}[t]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{figures/convergence_comparison.png}
+    \caption{Convergence trajectories across iterations.}
+    \label{fig:convergence}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{figures/algorithm_benchmark_heatmap.png}
+    \caption{Relative $L_2$ error heatmap across PDEs.}
+    \label{fig:heatmap}
+\end{subfigure}
+\caption{Comparative performance across all 13 evaluated algorithms. Adaptive and hybrid metaheuristics consistently achieve superior convergence depth and stability.}
+\label{fig:main_benchmark}
+\end{figure*}
+
+\subsection{Convergence Speed Analysis}
+Table~\ref{tab:convergence_speed} details convergence metrics on the ODE oscillator benchmark over 5 independent random seeds.
+
+\input{tables/table_speed.tex}
+
+\begin{figure*}[t]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{figures/speed_convergence_trajectories.png}
+    \caption{High-resolution convergence speed trajectories.}
+    \label{fig:speed_traj}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{figures/radar_multi_criteria.png}
+    \caption{Multi-criteria trade-off radar profile.}
+    \label{fig:radar}
+\end{subfigure}
+\caption{Convergence velocity and multi-criteria trade-offs. Fuzzy-PSO and PDE-Robust-DE provide the optimal balance of descent slope, Area Under Curve (AUC), and solution accuracy.}
+\label{fig:speed_analysis}
+\end{figure*}
+
+\subsection{Direct Comparison Against SOTA Baseline (Buzaev et al., 2026)}
+Table~\ref{tab:baseline_head_to_head} summarizes the head-to-head empirical comparison between the Buzaev et al. (2026) two-stage baseline and our proposed algorithms.
+
+\input{tables/table_baseline_comparison.tex}
+
+Key empirical findings:
+\begin{itemize}
+    \item \textbf{Accuracy Improvement:} \textbf{Fuzzy-PSO} and \textbf{PDE-Robust-DE} achieve \textbf{$4.3\times$} and \textbf{$2.1\times$} lower relative $L_2$ error ($0.00266$ and $0.00535$ vs. $0.01153$).
+    \item \textbf{Speed:} \textbf{PDE-Robust-DE} reaches the target accuracy threshold in \textbf{28.8 evaluations}, outperforming Buzaev et al.'s $33.0$ evaluations.
+    \item \textbf{Multimodal Reliability:} The **ACO-GA Hybrid** and **Fuzzy-PSO** achieve near-zero cross-seed variance ($\sigma \approx 5.20 \times 10^{-18}$), avoiding the premature local basin traps that afflicted the baseline ($\sigma = 1.74 \times 10^{-3}$).
+\end{itemize}
+
+---
+
+\section{Guidelines for Computational Practitioners}
+\label{sec:guidelines}
+Based on our findings, we formulate the following operational recommendations:
+\begin{enumerate}
+    \item \textbf{Constrained Compute Budget ($<30$ evaluations):} Deploy \textbf{GSA} or \textbf{GA-PSO Hybrid} for rapid macro-basin discovery.
+    \item \textbf{High-Dimensional / Multimodal PDEs:} Deploy the \textbf{ACO-GA Hybrid} to maintain Gaussian mixture coverage over conflicting loss weight ravines.
+    \item \textbf{High-Precision Physical Systems (Stiff PDEs):} Deploy \textbf{PDE-Robust-DE} or \textbf{Fuzzy-PSO} to guarantee smooth navigation across ill-conditioned loss ravines without premature convergence.
+    \item \textbf{Default Architectural Choices:} Periodic Siren activations ($\phi = \text{sine}$) combined with AdamW pre-training and L-BFGS second-order polishing consistently dominate across all benchmarks.
+\end{enumerate}
+
+---
+
+\section{Conclusion}
+\label{sec:conclusion}
+In this paper, we conducted a rigorous benchmark of 13 HPO algorithms for Physics-Informed Neural Networks and demonstrated the foundational flaws of static multi-stage truncation strategies. We introduced continuous dynamic adaptive algorithms (\textbf{PDE-Robust-DE} and \textbf{Fuzzy-PSO}) and multimodal hybrid architectures (\textbf{ACO-GA Hybrid}). Empirical results validated against the DEAP framework confirm significant reductions in error ($2\times$ to $4.3\times$), accelerated convergence, and superior cross-PDE generalizability. Future work will extend these continuous adaptive principles to Neural Operators (DeepONet and Fourier Neural Operators).
+
+\section*{Reproducibility Statement}
+All code, benchmarks, random seeds, and plot generators are fully open-sourced in the accompanying repository with one-command reproduction via \texttt{python scripts/reproduce\_all.py}.
+
+\bibliographystyle{elsarticle-harv}
+\bibliography{references}
+
+\end{document}

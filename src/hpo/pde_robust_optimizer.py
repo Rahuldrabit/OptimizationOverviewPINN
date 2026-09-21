@@ -60,6 +60,8 @@ def run_pde_robust_opt(
     n_generations: int = 10,
     sol_per_pop: int = 20,
     n_steps: int = 1200,
+    adaptive: bool = True,
+    bounce_back: bool = True,
 ) -> dict[str, Any]:
     """
     PDE-Robust-DE (Physics-Informed Differential Evolution with Adaptive Scaling)
@@ -101,11 +103,15 @@ def run_pde_robust_opt(
         successful_CR = []
 
         for i in range(sol_per_pop):
-            # Generate F and CR for this individual based on adaptive means
-            F = rng.normal(mu_F, 0.1)
-            F = np.clip(F, 0.1, 1.0)
-            CR = rng.normal(mu_CR, 0.1)
-            CR = np.clip(CR, 0.0, 1.0)
+            # Generate F and CR for this individual
+            if adaptive:
+                F = rng.normal(mu_F, 0.1)
+                F = np.clip(F, 0.1, 1.0)
+                CR = rng.normal(mu_CR, 0.1)
+                CR = np.clip(CR, 0.0, 1.0)
+            else:
+                F = 0.5
+                CR = 0.7
 
             # DE/rand/1 Mutation
             candidates = list(range(sol_per_pop))
@@ -121,12 +127,15 @@ def run_pde_robust_opt(
                 if rng.random() < CR or j == j_rand:
                     trial[j] = mutant[j]
                     
-            # Boundary handling (Bounce-back)
-            for j in range(dim):
-                if trial[j] < lb[j]:
-                    trial[j] = lb[j] + rng.random() * (pop[i, j] - lb[j])
-                elif trial[j] > ub[j]:
-                    trial[j] = ub[j] - rng.random() * (ub[j] - pop[i, j])
+            # Boundary handling
+            if bounce_back:
+                for j in range(dim):
+                    if trial[j] < lb[j]:
+                        trial[j] = lb[j] + rng.random() * (pop[i, j] - lb[j])
+                    elif trial[j] > ub[j]:
+                        trial[j] = ub[j] - rng.random() * (ub[j] - pop[i, j])
+            else:
+                trial = np.clip(trial, lb, ub)
 
             # Evaluate Trial
             cfg = _decode_solution(trial, space, base)
@@ -153,7 +162,7 @@ def run_pde_robust_opt(
         history.append(best_fit)
 
         # Adapt mu_F and mu_CR based on successful mutations
-        if len(successful_F) > 0:
+        if adaptive and len(successful_F) > 0:
             # Lehmer mean for F
             mu_F = (1 - c) * mu_F + c * (sum(f**2 for f in successful_F) / sum(successful_F))
             # Arithmetic mean for CR

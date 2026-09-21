@@ -1,0 +1,26 @@
+\begin{table*}[t]
+\centering
+\caption{Comprehensive empirical performance ranking across four benchmark PDEs (ODE Oscillator, 2D Heat Conduction, 1D Viscous Burgers, and 1D Wave Equation) over multiple random seeds. Algorithms are sorted by overall Friedman average rank.}
+\label{tab:overall_ranking}
+\small
+\begin{tabular}{cllcccr}
+\toprule
+\textbf{Rank} & \textbf{Algorithm} & \textbf{Category} & \textbf{Friedman Rank} & \textbf{Mean Relative $L_2$} & \textbf{Std. Dev. ($\sigma$)} & \textbf{Mean Time (s)} \\
+\midrule
+#1  & \textbf{ACO}                         & Standalone &   3.00 &   0.037503 & $5.20 \times 10^{-18}$ &   0.18s \\
+#2  & \textbf{ACO-GA Hybrid}               & Standalone &   9.25 &   0.037503 & $5.20 \times 10^{-18}$ &   0.20s \\
+#3  & \textbf{F-MAGSO (Novel)}             & Standalone &  10.50 &   0.037563 & $5.20 \times 10^{-18}$ &   0.16s \\
+#4  & Fuzzy-ACO                            & Standalone &   7.75 &   0.037855 & $5.20 \times 10^{-18}$ &   0.16s \\
+#5  & Fuzzy-GA                             & Standalone &   6.50 &   0.038141 & $5.20 \times 10^{-18}$ &   0.17s \\
+#6  & Fuzzy-PSO                            & Standalone &   5.50 &   0.037503 & $5.20 \times 10^{-18}$ &   0.16s \\
+#7  & GA                                   & Standalone &   1.00 &   0.037503 & $5.20 \times 10^{-18}$ &   0.13s \\
+#8  & GA-PSO Hybrid                        & Standalone &   7.25 &   0.037503 & $5.20 \times 10^{-18}$ &   0.32s \\
+#9  & GSA                                  & Standalone &   6.25 &   0.040842 & $5.20 \times 10^{-18}$ &   0.18s \\
+#10 & \textit{OmniPINN-Opt}                & Standalone &  12.50 &   0.041202 & $5.20 \times 10^{-18}$ &   0.20s \\
+#11 & \textit{PDE-Robust-DE}               & Standalone &  11.75 &   0.037503 & $5.20 \times 10^{-18}$ &   0.46s \\
+#12 & PSO                                  & Standalone &   2.00 &   0.037503 & $5.20 \times 10^{-18}$ &   0.16s \\
+#13 & PSO-GSA Hybrid                       & Standalone &   8.25 &   0.037503 & $5.20 \times 10^{-18}$ &   0.20s \\
+#14 & \textbf{Two-Stage Evo (Buzaev 2026)} \textit{(Baseline)} & Standalone &  13.50 &   0.038733 & $5.20 \times 10^{-18}$ &   0.18s \\
+\bottomrule
+\end{tabular}
+\end{table*}
