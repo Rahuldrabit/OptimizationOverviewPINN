@@ -135,10 +135,15 @@ def run_ga(
     lb, ub = space.get_bounds()
 
     def fitness_func_raw(solution):
-        cfg = _decode_solution(np.asarray(solution), space, base)
-        metrics = train_pinn(cfg)
-        rel_l2 = float(metrics["val_rel_l2"])
-        return -rel_l2
+        try:
+            cfg = _decode_solution(np.asarray(solution), space, base)
+            metrics = train_pinn(cfg)
+            rel_l2 = float(metrics.get("val_rel_l2", 1e6))
+            if np.isnan(rel_l2) or np.isinf(rel_l2):
+                return -1e6
+            return -rel_l2
+        except Exception:
+            return -1e6
 
     diversity_history: list[dict[str, Any]] = []
 
@@ -184,7 +189,7 @@ def run_ga(
         ga.run()
         solution, solution_fitness, _ = ga.best_solution()
         history = [-float(f) for f in getattr(ga, "best_solutions_fitness", [solution_fitness])]
-    except ImportError:
+    except Exception:
         solution, solution_fitness, history, diversity_history = _ga_numpy(
             fitness_func_raw, lb, ub,
             sol_per_pop=int(sol_per_pop), n_generations=int(n_generations),

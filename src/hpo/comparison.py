@@ -167,7 +167,23 @@ def _run_single_job(alg: str, out_dir: str, bmark: str, seed: int, n_steps: int,
     ensure_dir(out_dir)
     runner_fn = ALGORITHM_REGISTRY[alg]
     t0 = time.perf_counter()
-    run_metrics = runner_fn(out_dir, bmark, seed, n_steps, quick)
+    try:
+        run_metrics = runner_fn(out_dir, bmark, seed, n_steps, quick)
+    except Exception as e:
+        import traceback
+        print(f"\n[Warning] Execution error in {alg} on {bmark} (seed={seed}): {e}")
+        traceback.print_exc()
+        run_metrics = {
+            "val_rel_l2": 1e6,
+            "val_mse": 1e6,
+            "val_linf": 1e6,
+            "train_last_loss": 1e6,
+            "history": [1e6],
+            "config": {},
+            "diversity_history": [],
+            "optimizer_name": alg,
+            "error": str(e),
+        }
     elapsed = time.perf_counter() - t0
     return run_metrics, elapsed
 

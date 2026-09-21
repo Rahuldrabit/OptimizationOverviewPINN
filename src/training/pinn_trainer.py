@@ -81,6 +81,12 @@ def train_pinn(cfg: TrainConfig) -> dict[str, Any]:
         # for these benchmark types are NOT real and must not be reported as such.
         metrics = train_pinn_placeholder(cfg, bench)
 
+    import math
+    for k in ["val_rel_l2", "val_mse", "val_linf", "train_last_loss"]:
+        v = metrics.get(k)
+        if v is None or not isinstance(v, (int, float)) or math.isnan(v) or math.isinf(v):
+            metrics[k] = 1e6  # Large penalty for divergence or missing metric
+
     return {
         "config": asdict(cfg),
         **metrics

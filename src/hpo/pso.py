@@ -127,7 +127,7 @@ def run_pso(
         best_x, best_f = pso(objective, lb, ub, swarmsize=int(swarmsize), maxiter=int(maxiter))
         history = [float(best_f)]
         diversity_history: list[dict[str, Any]] = []  # pyswarm 0.6 exposes no per-iteration swarm hook
-    except ImportError:
+    except Exception:
         best_x, best_f, history, diversity_history = _pso_numpy(objective, lb, ub, swarmsize=int(swarmsize), maxiter=int(maxiter), seed=seed)
 
     best_cfg = _decode_position(np.asarray(best_x), space, base)

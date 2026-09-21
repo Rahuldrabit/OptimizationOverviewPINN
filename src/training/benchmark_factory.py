@@ -143,7 +143,11 @@ def train_pinn_ode(cfg, bench) -> dict[str, Any]:
                     return loss
 
                 loss_tensor = opt.step(closure)
-                last_loss = float(loss_tensor.detach().cpu().item())
+                if loss_tensor is not None:
+                    try:
+                        last_loss = float(loss_tensor.detach().cpu().item())
+                    except Exception:
+                        pass
         else:
             for _ in range(int(cfg.n_steps)):
                 opt.zero_grad(set_to_none=True)
@@ -168,7 +172,10 @@ def train_pinn_ode(cfg, bench) -> dict[str, Any]:
                 loss.backward()
                 opt.step()
 
-                last_loss = float(loss.detach().cpu().item())
+                try:
+                    last_loss = float(loss.detach().cpu().item())
+                except Exception:
+                    pass
 
         # Evaluation on grid
         t_eval = np.linspace(cfg.t0, cfg.t1, int(cfg.n_eval), dtype=np.float32).reshape(-1, 1)
@@ -250,14 +257,21 @@ def _run_optimization(opt, use_lbfgs: bool, compute_loss_fn, n_steps: int) -> fl
                 return loss
 
             loss_tensor = opt.step(closure)
-            last_loss = float(loss_tensor.detach().cpu().item())
+            if loss_tensor is not None:
+                try:
+                    last_loss = float(loss_tensor.detach().cpu().item())
+                except Exception:
+                    pass
     else:
         for _ in range(int(n_steps)):
             opt.zero_grad(set_to_none=True)
             loss = compute_loss_fn()
             loss.backward()
             opt.step()
-            last_loss = float(loss.detach().cpu().item())
+            try:
+                last_loss = float(loss.detach().cpu().item())
+            except Exception:
+                pass
     return last_loss
 
 
