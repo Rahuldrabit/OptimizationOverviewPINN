@@ -61,7 +61,7 @@ from utils import ensure_dir, save_json
 
 
 def run_f_magso_ablation(
-    benchmark: str, seed: int, quick: bool, n_steps: int, out_dir: str
+    benchmark: str, seed: int, quick: bool, n_steps: int, out_dir: str, resume: bool = True
 ) -> dict[str, dict[str, Any]]:
     pop_size = 6 if quick else 12
     max_evals = 24 if quick else 60
@@ -106,6 +106,19 @@ def run_f_magso_ablation(
     for name, kwargs in variants.items():
         v_dir = os.path.join(out_dir, "f_magso", name.lower().replace(" ", "_").replace("/", "_"))
         ensure_dir(v_dir)
+        ckpt_file = os.path.join(v_dir, "ablation_checkpoint.json")
+
+        if resume and os.path.exists(ckpt_file):
+            try:
+                with open(ckpt_file, "r", encoding="utf-8") as f:
+                    cached_res = json.load(f)
+                if cached_res.get("quick") == quick and cached_res.get("n_steps") == steps:
+                    results[name] = cached_res
+                    print(f"  -> {name} ... (Resumed from checkpoint) | Val Rel L2 = {cached_res['val_rel_l2']:.6e}")
+                    continue
+            except Exception:
+                pass
+
         print(f"  -> Testing: {name} ...", end="", flush=True)
         t0 = time.perf_counter()
         res = run_f_magso(
@@ -120,6 +133,9 @@ def run_f_magso_ablation(
         elapsed = time.perf_counter() - t0
         res["runtime_sec"] = elapsed
         res["ablation_variant"] = name
+        res["quick"] = quick
+        res["n_steps"] = steps
+        save_json(ckpt_file, res)
         results[name] = res
         print(f" Done in {elapsed:.2f}s | Val Rel L2 = {res['val_rel_l2']:.6e}")
 
@@ -127,7 +143,7 @@ def run_f_magso_ablation(
 
 
 def run_pde_robust_de_ablation(
-    benchmark: str, seed: int, quick: bool, n_steps: int, out_dir: str
+    benchmark: str, seed: int, quick: bool, n_steps: int, out_dir: str, resume: bool = True
 ) -> dict[str, dict[str, Any]]:
     sol_per_pop = 6 if quick else 16
     n_generations = 4 if quick else 8
@@ -154,6 +170,19 @@ def run_pde_robust_de_ablation(
     for name, kwargs in variants.items():
         v_dir = os.path.join(out_dir, "pde_robust_de", name.lower().replace(" ", "_").replace("/", "_"))
         ensure_dir(v_dir)
+        ckpt_file = os.path.join(v_dir, "ablation_checkpoint.json")
+
+        if resume and os.path.exists(ckpt_file):
+            try:
+                with open(ckpt_file, "r", encoding="utf-8") as f:
+                    cached_res = json.load(f)
+                if cached_res.get("quick") == quick and cached_res.get("n_steps") == steps:
+                    results[name] = cached_res
+                    print(f"  -> {name} ... (Resumed from checkpoint) | Val Rel L2 = {cached_res['val_rel_l2']:.6e}")
+                    continue
+            except Exception:
+                pass
+
         print(f"  -> Testing: {name} ...", end="", flush=True)
         t0 = time.perf_counter()
         res = run_pde_robust_opt(
@@ -168,6 +197,9 @@ def run_pde_robust_de_ablation(
         elapsed = time.perf_counter() - t0
         res["runtime_sec"] = elapsed
         res["ablation_variant"] = name
+        res["quick"] = quick
+        res["n_steps"] = steps
+        save_json(ckpt_file, res)
         results[name] = res
         print(f" Done in {elapsed:.2f}s | Val Rel L2 = {res['val_rel_l2']:.6e}")
 
@@ -175,7 +207,7 @@ def run_pde_robust_de_ablation(
 
 
 def run_fuzzy_ablation(
-    benchmark: str, seed: int, quick: bool, n_steps: int, out_dir: str
+    benchmark: str, seed: int, quick: bool, n_steps: int, out_dir: str, resume: bool = True
 ) -> dict[str, dict[str, Any]]:
     steps = 60 if quick else n_steps
     results: dict[str, dict[str, Any]] = {}
@@ -193,12 +225,28 @@ def run_fuzzy_ablation(
     for name, fn in pairs:
         v_dir = os.path.join(out_dir, "fuzzy_ablation", name.lower().replace(" ", "_"))
         ensure_dir(v_dir)
+        ckpt_file = os.path.join(v_dir, "ablation_checkpoint.json")
+
+        if resume and os.path.exists(ckpt_file):
+            try:
+                with open(ckpt_file, "r", encoding="utf-8") as f:
+                    cached_res = json.load(f)
+                if cached_res.get("quick") == quick and cached_res.get("n_steps") == steps:
+                    results[name] = cached_res
+                    print(f"  -> {name} ... (Resumed from checkpoint) | Val Rel L2 = {cached_res['val_rel_l2']:.6e}")
+                    continue
+            except Exception:
+                pass
+
         print(f"  -> Testing: {name} ...", end="", flush=True)
         t0 = time.perf_counter()
         res = fn(v_dir)
         elapsed = time.perf_counter() - t0
         res["runtime_sec"] = elapsed
         res["ablation_variant"] = name
+        res["quick"] = quick
+        res["n_steps"] = steps
+        save_json(ckpt_file, res)
         results[name] = res
         print(f" Done in {elapsed:.2f}s | Val Rel L2 = {res['val_rel_l2']:.6e}")
 
@@ -206,7 +254,7 @@ def run_fuzzy_ablation(
 
 
 def run_hybrids_ablation(
-    benchmark: str, seed: int, quick: bool, n_steps: int, out_dir: str
+    benchmark: str, seed: int, quick: bool, n_steps: int, out_dir: str, resume: bool = True
 ) -> dict[str, dict[str, Any]]:
     steps = 60 if quick else n_steps
     results: dict[str, dict[str, Any]] = {}
@@ -225,12 +273,28 @@ def run_hybrids_ablation(
     for name, fn in algs:
         v_dir = os.path.join(out_dir, "hybrid_ablation", name.lower().replace(" ", "_"))
         ensure_dir(v_dir)
+        ckpt_file = os.path.join(v_dir, "ablation_checkpoint.json")
+
+        if resume and os.path.exists(ckpt_file):
+            try:
+                with open(ckpt_file, "r", encoding="utf-8") as f:
+                    cached_res = json.load(f)
+                if cached_res.get("quick") == quick and cached_res.get("n_steps") == steps:
+                    results[name] = cached_res
+                    print(f"  -> {name} ... (Resumed from checkpoint) | Val Rel L2 = {cached_res['val_rel_l2']:.6e}")
+                    continue
+            except Exception:
+                pass
+
         print(f"  -> Testing: {name} ...", end="", flush=True)
         t0 = time.perf_counter()
         res = fn(v_dir)
         elapsed = time.perf_counter() - t0
         res["runtime_sec"] = elapsed
         res["ablation_variant"] = name
+        res["quick"] = quick
+        res["n_steps"] = steps
+        save_json(ckpt_file, res)
         results[name] = res
         print(f" Done in {elapsed:.2f}s | Val Rel L2 = {res['val_rel_l2']:.6e}")
 

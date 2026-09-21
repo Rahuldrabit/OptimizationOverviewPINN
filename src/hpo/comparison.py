@@ -6,6 +6,7 @@ recording convergence metrics, runtime, and discovered hyperparameters.
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from dataclasses import asdict, dataclass, field
@@ -151,13 +152,13 @@ ALGORITHM_REGISTRY: dict[str, Callable[..., dict[str, Any]]] = {
 
 
 
-def _run_single_job(alg: str, out_dir: str, bmark: str, seed: int, n_steps: int, quick: bool) -> tuple[dict[str, Any], float]:
+def _run_single_job(
+    alg: str, out_dir: str, bmark: str, seed: int, n_steps: int, quick: bool, resume: bool = True
+) -> tuple[dict[str, Any], float, bool]:
     """Module-level worker: runs one (benchmark, algorithm, seed) job and times it.
 
-    Kept at module scope (rather than inline) so it can be pickled by reference when
-    dispatched through ProcessPoolExecutor with the "spawn" start method (required on
-    Windows) - only the algorithm name and plain arguments cross the process boundary,
-    not the ALGORITHM_REGISTRY lambda itself.
+    Supports automatic checkpoint-resume: if a valid checkpoint.json already exists in out_dir
+    with matching configuration, it is loaded directly to save compute and allow seamless recovery.
     """
     try:
         import torch
@@ -165,6 +166,24 @@ def _run_single_job(alg: str, out_dir: str, bmark: str, seed: int, n_steps: int,
     except ImportError:
         pass
     ensure_dir(out_dir)
+
+    checkpoint_file = os.path.join(out_dir, "checkpoint.json")
+    if resume and os.path.exists(checkpoint_file):
+        try:
+            with open(checkpoint_file, "r", encoding="utf-8") as f:
+                ckpt = json.load(f)
+            if (
+                ckpt.get("bmark") == bmark
+                and ckpt.get("alg") == alg
+                and ckpt.get("seed") == seed
+                and ckpt.get("quick") == quick
+                and "metrics" in ckpt
+                and "elapsed" in ckpt
+            ):
+                return ckpt["metrics"], float(ckpt["elapsed"]), True
+        except Exception:
+            pass
+
     runner_fn = ALGORITHM_REGISTRY[alg]
     t0 = time.perf_counter()
     try:
@@ -185,7 +204,25 @@ def _run_single_job(alg: str, out_dir: str, bmark: str, seed: int, n_steps: int,
             "error": str(e),
         }
     elapsed = time.perf_counter() - t0
-    return run_metrics, elapsed
+
+    # Persist checkpoint immediately upon completion
+    try:
+        save_json(
+            checkpoint_file,
+            {
+                "alg": alg,
+                "bmark": bmark,
+                "seed": seed,
+                "n_steps": n_steps,
+                "quick": quick,
+                "metrics": run_metrics,
+                "elapsed": elapsed,
+            },
+        )
+    except Exception:
+        pass
+
+    return run_metrics, elapsed, False
 
 
 def run_experiment_grid(
@@ -193,6 +230,7 @@ def run_experiment_grid(
     quick: bool = False,
     verbose: bool = True,
     max_workers: int = 1,
+    resume: bool = True,
 ) -> dict[str, Any]:
     """Execute the full config-style search across algorithms, benchmarks, and seeds.
 
@@ -224,6 +262,7 @@ def run_experiment_grid(
         print(f"Algorithms: {config.algorithms}")
         print(f"Seeds: {config.seeds}")
         print(f"Parallel workers: {max_workers}")
+        print(f"Resume from checkpoints: {resume}")
         print("=" * 70)
 
     # Job specs: (bmark, alg, seed, out_dir), skipping unknown algorithms up front.
@@ -244,27 +283,29 @@ def run_experiment_grid(
 
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = {
-                executor.submit(_run_single_job, alg, out_dir, bmark, seed, config.n_steps, quick): (bmark, alg, seed)
+                executor.submit(_run_single_job, alg, out_dir, bmark, seed, config.n_steps, quick, resume): (bmark, alg, seed)
                 for (bmark, alg, seed, out_dir) in job_specs
             }
             for future in as_completed(futures):
                 bmark, alg, seed = futures[future]
                 current_run += 1
-                run_metrics, elapsed = future.result()
+                run_metrics, elapsed, from_ckpt = future.result()
                 job_results[(bmark, alg, seed)] = (run_metrics, elapsed)
                 if verbose:
                     rel_l2 = float(run_metrics.get("val_rel_l2", 1.0))
-                    print(f"[{current_run}/{total_runs}] {alg:20s} {bmark:10s} seed={seed} done (rel_L2 = {rel_l2:.6f}, time = {elapsed:.2f}s)")
+                    status = "resumed" if from_ckpt else "done"
+                    print(f"[{current_run}/{total_runs}] {alg:20s} {bmark:10s} seed={seed} {status} (rel_L2 = {rel_l2:.6f}, time = {elapsed:.2f}s)")
     else:
         for (bmark, alg, seed, out_dir) in job_specs:
             current_run += 1
             if verbose:
                 print(f"[{current_run}/{total_runs}] Running {alg:15s} on {bmark:10s} (seed={seed})...", end="", flush=True)
-            run_metrics, elapsed = _run_single_job(alg, out_dir, bmark, seed, config.n_steps, quick)
+            run_metrics, elapsed, from_ckpt = _run_single_job(alg, out_dir, bmark, seed, config.n_steps, quick, resume)
             job_results[(bmark, alg, seed)] = (run_metrics, elapsed)
             if verbose:
                 rel_l2 = float(run_metrics.get("val_rel_l2", 1.0))
-                print(f" done (rel_L2 = {rel_l2:.6f}, time = {elapsed:.2f}s)")
+                status = "resumed" if from_ckpt else "done"
+                print(f" {status} (rel_L2 = {rel_l2:.6f}, time = {elapsed:.2f}s)")
 
     for bmark in config.benchmarks:
         results["raw_runs"][bmark] = {}

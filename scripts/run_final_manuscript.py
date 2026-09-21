@@ -147,6 +147,11 @@ def main() -> None:
     )
     parser.add_argument("--skip-grid", action="store_true", help="Skip the main benchmark grid")
     parser.add_argument("--skip-ablation", action="store_true", help="Skip the ablation studies")
+    parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="Do not resume from checkpoints; force re-running all tasks from scratch",
+    )
     args = parser.parse_args()
 
     # Determine seeds and steps based on mode
@@ -157,6 +162,7 @@ def main() -> None:
         seeds = args.seeds or [0, 1, 2]
         n_steps = args.steps
 
+    resume = not args.no_resume
     base_out = args.output_dir
     ensure_dir(base_out)
     latex_dir = str(project_root / "paper" / "tables")
@@ -171,6 +177,7 @@ def main() -> None:
     print(f"Random Seeds        : {seeds}")
     print(f"PINN Steps          : {n_steps}")
     print(f"Workers (Parallel)  : {args.workers}")
+    print(f"Resume Checkpoints  : {resume}")
     print(f"Output Directory    : {base_out}")
     print("=" * 80 + "\n")
 
@@ -207,6 +214,7 @@ def main() -> None:
             quick=args.quick,
             verbose=True,
             max_workers=args.workers,
+            resume=resume,
         )
 
         # Generate publication figures
@@ -244,7 +252,7 @@ def main() -> None:
         # 1. F-MAGSO Component Ablation
         print("\n[1/4] Running F-MAGSO Component Ablation...")
         f_magso_res = run_f_magso_ablation(
-            primary_ablation_bmark, ablation_seed, args.quick, n_steps, ablation_dir
+            primary_ablation_bmark, ablation_seed, args.quick, n_steps, ablation_dir, resume=resume
         )
         print_summary_table("F-MAGSO Architectural Components", f_magso_res)
         ablation_results["f_magso"] = {
@@ -255,7 +263,7 @@ def main() -> None:
         # 2. PDE-Robust-DE Mechanics Ablation
         print("\n[2/4] Running PDE-Robust-DE Mechanics Ablation...")
         pde_de_res = run_pde_robust_de_ablation(
-            primary_ablation_bmark, ablation_seed, args.quick, n_steps, ablation_dir
+            primary_ablation_bmark, ablation_seed, args.quick, n_steps, ablation_dir, resume=resume
         )
         print_summary_table("PDE-Robust-DE Mechanics", pde_de_res)
         ablation_results["pde_robust_de"] = {
@@ -266,7 +274,7 @@ def main() -> None:
         # 3. Fuzzy Closed-Loop Dynamic Adaptation Ablation
         print("\n[3/4] Running Fuzzy Dynamic Adaptation vs Static Baselines...")
         fuzzy_res = run_fuzzy_ablation(
-            primary_ablation_bmark, ablation_seed, args.quick, n_steps, ablation_dir
+            primary_ablation_bmark, ablation_seed, args.quick, n_steps, ablation_dir, resume=resume
         )
         print_summary_table("Fuzzy Closed-Loop Adaptation Impact", fuzzy_res)
         ablation_results["fuzzy"] = {
@@ -277,7 +285,7 @@ def main() -> None:
         # 4. Hybrid Synergy Ablation
         print("\n[4/4] Running Hybrid Synergy Analysis vs Constituent Standalones...")
         hybrid_res = run_hybrids_ablation(
-            primary_ablation_bmark, ablation_seed, args.quick, n_steps, ablation_dir
+            primary_ablation_bmark, ablation_seed, args.quick, n_steps, ablation_dir, resume=resume
         )
         print_summary_table("Hybrid Synergy vs Constituent Optimizers", hybrid_res)
         ablation_results["hybrids"] = {
