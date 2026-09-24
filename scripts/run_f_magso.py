@@ -1,4 +1,4 @@
-"""CLI runner for the Novel F-MAGSO (Fuzzy-Guided Multi-Stage Adaptive Gravitational Swarm Optimizer)."""
+"""CLI runner for F-MAGSO (Fuzzy-Guided Multi-Stage Adaptive Gravitational Swarm Optimizer)."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from utils import ensure_dir
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run Novel F-MAGSO for PINN Hyperparameter Optimization")
+    parser = argparse.ArgumentParser(description="Run F-MAGSO for PINN Hyperparameter Optimization")
     parser.add_argument("benchmark", nargs="?", default="ode", help="Benchmark PDE type (default: ode)")
     parser.add_argument("--seed", type=int, default=0, help="Random seed")
     parser.add_argument("--evals", type=int, default=60, help="Max evaluations budget")
@@ -31,7 +31,7 @@ def main() -> None:
     ensure_dir(out_dir)
 
     print(f"\n{'='*70}")
-    print(f"RUNNING NOVEL F-MAGSO OPTIMIZER ON '{args.benchmark.upper()}' BENCHMARK")
+    print(f"RUNNING F-MAGSO OPTIMIZER ON '{args.benchmark.upper()}' BENCHMARK")
     print(f"Max Evaluations: {args.evals} | Seed: {args.seed} | PINN Steps: {args.steps}")
     print(f"{'='*70}\n")
 

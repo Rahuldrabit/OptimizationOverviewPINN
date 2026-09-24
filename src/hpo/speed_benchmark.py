@@ -424,7 +424,7 @@ def run_speed_test_for_algorithm(
                     break
                 fitness[i] = tracker.evaluate(X[i])
 
-    elif alg_name == "F-MAGSO (Novel)":
+    elif alg_name in ("F-MAGSO", "F-MAGSO (Novel)"):
         pop_size = 10
         flc = FuzzyController()
         G0, alpha = 100.0, 15.0
@@ -609,7 +609,7 @@ def run_full_convergence_speed_benchmark(
     algorithms = [
         "Two-Stage Evo (Buzaev 2026)",
         "PDE-Robust-DE",
-        "F-MAGSO (Novel)",
+        "F-MAGSO",
         "PSO", "Fuzzy-PSO", "PSO-GSA Hybrid",
         "GA-PSO Hybrid", "GA", "Fuzzy-GA",
         "ACO", "Fuzzy-ACO", "ACO-GA Hybrid", "GSA"

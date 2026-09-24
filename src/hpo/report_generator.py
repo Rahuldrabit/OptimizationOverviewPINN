@@ -37,7 +37,8 @@ COLOR_MAP = {
     "GA-PSO Hybrid": "#8c564b",
     "PSO-GSA Hybrid": "#e377c2",
     "ACO-GA Hybrid": "#7f7f7f",
-    # Novel Proposed Algorithms
+    # Proposed Algorithms
+    "F-MAGSO": "#e41a1c",
     "F-MAGSO (Novel)": "#e41a1c",
     "PDE-Robust-DE": "#ff7f00",
     "Two-Stage Evo (Buzaev 2026)": "#33a02c",
@@ -50,7 +51,8 @@ STYLE_MAP = {
     "Fuzzy-GA": "--", "Fuzzy-PSO": "--", "Fuzzy-ACO": "--",
     # Hybrids: dash-dot
     "GA-PSO Hybrid": "-.", "PSO-GSA Hybrid": "-.", "ACO-GA Hybrid": "-.",
-    # Novel / Baselines
+    # Baselines / Proposed
+    "F-MAGSO": "-",
     "F-MAGSO (Novel)": "-",
     "PDE-Robust-DE": "--",
     "Two-Stage Evo (Buzaev 2026)": ":",
@@ -203,11 +205,11 @@ def generate_all_plots(results: dict[str, Any], output_dir: str) -> dict[str, st
     min_t, max_t = min(all_times), max(all_times)
     min_div, max_div = (min(all_diversities), max(all_diversities)) if all_diversities else (0.0, 1.0)
 
-    # Select top performers, ensuring novel algorithms are included for direct comparison
+    # Select top performers, ensuring key proposed algorithms are included for direct comparison
     selected_algs = []
-    for key_novel in ["F-MAGSO (Novel)", "PDE-Robust-DE"]:
-        if key_novel in rankings and key_novel not in selected_algs:
-            selected_algs.append(key_novel)
+    for key_alg in ["F-MAGSO", "PDE-Robust-DE", "F-MAGSO (Novel)"]:
+        if key_alg in rankings and key_alg not in selected_algs:
+            selected_algs.append(key_alg)
     for alg in rankings.keys():
         if alg not in selected_algs:
             selected_algs.append(alg)

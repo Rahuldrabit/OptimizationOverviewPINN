@@ -57,7 +57,7 @@ class ExperimentConfig:
         "GA", "PSO", "ACO", "GSA",
         "Fuzzy-GA", "Fuzzy-PSO", "Fuzzy-ACO",
         "GA-PSO Hybrid", "PSO-GSA Hybrid", "ACO-GA Hybrid",
-        "F-MAGSO (Novel)",
+        "F-MAGSO",
         "PDE-Robust-DE",
         "Two-Stage Evo (Buzaev 2026)"
     ])
@@ -129,6 +129,12 @@ ALGORITHM_REGISTRY: dict[str, Callable[..., dict[str, Any]]] = {
         pop_size=6 if quick else 12,
         aco_iterations=2 if quick else 4,
         ga_generations=2 if quick else 4,
+        n_steps=steps
+    ),
+    "F-MAGSO": lambda out_dir, bmark, seed, steps, quick: run_f_magso(
+        out_dir, bmark, seed=seed,
+        pop_size=6 if quick else 12,
+        max_evals=30 if quick else 80,
         n_steps=steps
     ),
     "F-MAGSO (Novel)": lambda out_dir, bmark, seed, steps, quick: run_f_magso(

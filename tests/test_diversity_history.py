@@ -18,7 +18,7 @@ ALL_13_ALGORITHMS = [
     "GA", "PSO", "ACO", "GSA",
     "Fuzzy-GA", "Fuzzy-PSO", "Fuzzy-ACO",
     "GA-PSO Hybrid", "PSO-GSA Hybrid", "ACO-GA Hybrid",
-    "F-MAGSO (Novel)",
+    "F-MAGSO",
     "PDE-Robust-DE",
     "Two-Stage Evo (Buzaev 2026)",
 ]

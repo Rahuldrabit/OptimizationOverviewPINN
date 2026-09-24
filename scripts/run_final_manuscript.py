@@ -1,7 +1,7 @@
 """Unified Master Execution Suite for PINN Hyperparameter Optimization Manuscript.
 
 Executes the complete experimental pipeline in one command:
-1. Multi-PDE Benchmark Grid (Baselines, Fuzzy variants, Hybrids, and Novel F-MAGSO & PDE-Robust-DE).
+1. Multi-PDE Benchmark Grid (Baselines, Fuzzy variants, Hybrids, F-MAGSO, and PDE-Robust-DE).
 2. Systematic Ablation Studies (F-MAGSO components, PDE-Robust-DE mechanics, Fuzzy adaptations, Hybrid synergies).
 3. Publication Figure Generation (Convergence trajectories, radar charts, rankings heatmap, boxplots).
 4. Automated LaTeX Tables Export (Rankings, Head-to-Head, Speed, and Ablation tables).
@@ -60,7 +60,7 @@ def export_ablation_latex_table(ablation_data: dict[str, Any], out_file: str) ->
     latex_lines = [
         r"\begin{table*}[t]",
         r"\centering",
-        r"\caption{Ablation Study Results: Performance degradation and runtime across novel components, mechanics, fuzzy adaptation, and hybrid formulations.}",
+        r"\caption{Ablation Study Results: Performance degradation and runtime across architectural components, mechanics, fuzzy adaptation, and hybrid formulations.}",
         r"\label{tab:ablation_results}",
         r"\small",
         r"\begin{tabular}{llrr}",
@@ -198,7 +198,7 @@ def main() -> None:
             "GA", "PSO", "ACO", "GSA",
             "Fuzzy-GA", "Fuzzy-PSO", "Fuzzy-ACO",
             "GA-PSO Hybrid", "PSO-GSA Hybrid", "ACO-GA Hybrid",
-            "F-MAGSO (Novel)",
+            "F-MAGSO",
             "PDE-Robust-DE",
             "Two-Stage Evo (Buzaev 2026)",
         ]

@@ -42,12 +42,12 @@ def export_ranking_latex_table(results: dict, out_file: str) -> None:
 
         # Highlight top 3 and baseline
         is_baseline = "Buzaev" in alg_name
-        is_novel = alg_name in ["F-MAGSO (Novel)", "PDE-Robust-DE"]
+        is_proposed = alg_name in ["F-MAGSO", "PDE-Robust-DE", "F-MAGSO (Novel)"]
 
         alg_str = alg_name
         if rank <= 3:
             alg_str = rf"\textbf{{{alg_name}}}"
-        elif is_novel:
+        elif is_proposed:
             alg_str = rf"\textit{{{alg_name}}}"
         elif is_baseline:
             alg_str = rf"\textbf{{{alg_name}}} \textit{{(Baseline)}}"
@@ -79,12 +79,12 @@ def export_speed_latex_table(out_file: str) -> None:
         ("GA-PSO Hybrid", "Hybrid", "13.0", "35.5", "0.0177", "1.48", "0.03s"),
         ("Two-Stage Evo (Buzaev 2026)", "Baseline", "13.8", "33.0", "0.0186", "1.57", "0.04s"),
         ("Fuzzy-ACO", "Fuzzy", "14.2", "51.0", "0.0177", "1.71", "0.04s"),
-        ("PDE-Robust-DE", "Novel Adaptive", "15.2", "28.8", "0.0186", "1.33", "0.05s"),
+        ("PDE-Robust-DE", "Adaptive DE", "15.2", "28.8", "0.0186", "1.33", "0.05s"),
         ("Fuzzy-PSO", "Fuzzy", "18.4", "32.0", "0.0186", "1.24", "0.03s"),
         ("PSO", "Standalone", "19.2", "32.0", "0.0186", "1.30", "0.03s"),
         ("GA", "Standalone", "21.4", "34.2", "0.0178", "1.44", "0.03s"),
         ("PSO-GSA Hybrid", "Hybrid", "21.8", "35.6", "0.0184", "1.31", "0.03s"),
-        ("F-MAGSO (Novel)", "Novel Hybrid", "28.6", "29.7", "0.0181", "1.46", "0.05s"),
+        ("F-MAGSO", "Hybrid Swarm", "28.6", "29.7", "0.0181", "1.46", "0.05s"),
         ("Fuzzy-GA", "Fuzzy", "31.2", "43.5", "0.0177", "1.73", "0.03s"),
         ("ACO", "Standalone", "32.2", "45.3", "0.0177", "1.73", "0.04s"),
         ("ACO-GA Hybrid", "Hybrid", "32.2", "45.3", "0.0177", "1.73", "0.04s"),

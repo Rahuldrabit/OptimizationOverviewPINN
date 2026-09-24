@@ -1,4 +1,4 @@
-"""Novel Proposed Algorithm: Fuzzy-Guided Multi-Stage Adaptive Gravitational Swarm Optimizer (F-MAGSO).
+"""F-MAGSO: Fuzzy-Guided Multi-Stage Adaptive Gravitational Swarm Optimizer.
 
 Synthesizes the empirical findings from the benchmark investigation:
 1. GSA Macro-Attraction: Instant early basin capture (from GSA's 4-eval speed).
@@ -50,7 +50,7 @@ def run_f_magso(
     use_ga_schema: bool = True,
     use_multistage: bool = True,
 ) -> dict[str, Any]:
-    """Execute the Novel F-MAGSO (Fuzzy-Guided Multi-Stage Adaptive Gravitational Swarm Optimizer)."""
+    """Execute F-MAGSO (Fuzzy-Guided Multi-Stage Adaptive Gravitational Swarm Optimizer)."""
     rng = np.random.default_rng(seed)
     space = SearchSpace()
     base = TrainConfig(seed=seed, n_steps=n_steps, benchmark_type=benchmark_type)
@@ -209,7 +209,7 @@ def run_f_magso(
     best_metrics["history"] = history
     best_metrics["eval_history"] = eval_history
     best_metrics["diversity_history"] = diversity_history
-    best_metrics["optimizer_name"] = "F-MAGSO (Novel)"
+    best_metrics["optimizer_name"] = "F-MAGSO"
 
     ensure_dir(out_dir)
     save_json(f"{out_dir}/f_magso_best_metrics.json", best_metrics)
