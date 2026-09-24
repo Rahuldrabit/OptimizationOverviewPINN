@@ -15,7 +15,7 @@ if str(project_root) not in sys.path:
 if str(project_root / "src") not in sys.path:
     sys.path.insert(0, str(project_root / "src"))
 
-from hpo.novel_f_magso import run_f_magso
+from hpo.f_magso import run_f_magso
 from utils import ensure_dir
 
 

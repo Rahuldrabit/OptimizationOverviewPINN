@@ -65,7 +65,11 @@ def main() -> None:
     print(f"\n{'='*70}")
     print("INVESTIGATION COMPLETE. OVERALL RANKINGS:")
     print(f"{'='*70}")
-    for rank, (alg, data) in enumerate(results["overall_rankings"].items(), start=1):
+    sorted_rankings = sorted(
+        results["overall_rankings"].items(),
+        key=lambda x: (x[1].get("average_rank", 999.0), x[1].get("overall_mean_rel_l2", 999.0)),
+    )
+    for rank, (alg, data) in enumerate(sorted_rankings, start=1):
         print(f"  #{rank:2d}: {alg:18s} | Avg Rank: {data['average_rank']:.2f} | Mean Rel L2: {data['overall_mean_rel_l2']:.6f} | Runtime: {data['overall_mean_runtime_sec']:.2f}s")
     print(f"{'='*70}")
     print(f"Full Report: {os.path.abspath(report_file)}")

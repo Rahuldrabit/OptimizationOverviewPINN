@@ -357,7 +357,11 @@ def main() -> None:
     print(f"Paper Figures        : {os.path.abspath(project_root / 'paper' / 'figures')}")
     if grid_results and "overall_rankings" in grid_results:
         print("\nTOP PERFORMING ALGORITHMS (FRIEDMAN RANK):")
-        for rank, (alg, data) in enumerate(grid_results["overall_rankings"].items(), start=1):
+        sorted_ranks = sorted(
+            grid_results["overall_rankings"].items(),
+            key=lambda x: (x[1].get("average_rank", 999.0), x[1].get("overall_mean_rel_l2", 999.0)),
+        )
+        for rank, (alg, data) in enumerate(sorted_ranks, start=1):
             if rank <= 5:
                 print(f"  #{rank}: {alg:26s} Avg Rank: {data['average_rank']:.2f} | Mean Rel L2: {data['overall_mean_rel_l2']:.6e}")
     print("=" * 80 + "\n")

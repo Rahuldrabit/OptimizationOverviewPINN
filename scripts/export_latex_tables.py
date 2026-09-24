@@ -33,24 +33,44 @@ def export_ranking_latex_table(results: dict, out_file: str) -> None:
         r"\midrule",
     ]
 
-    for rank, (alg_name, stats) in enumerate(rankings.items(), start=1):
-        cat = stats.get("category", "Standalone")
+    # Explicitly sort algorithms by Friedman average rank, then mean relative L2
+    sorted_rankings = sorted(
+        rankings.items(),
+        key=lambda item: (item[1].get("average_rank", 999.0), item[1].get("overall_mean_rel_l2", 999.0)),
+    )
+
+    for rank, (raw_name, stats) in enumerate(sorted_rankings, start=1):
+        alg_name = "F-MAGSO" if "F-MAGSO" in raw_name else raw_name
+
+        # Categorize appropriately
+        if "Hybrid" in alg_name:
+            cat = "Hybrid"
+        elif "Fuzzy" in alg_name:
+            cat = "Fuzzy"
+        elif "Buzaev" in alg_name:
+            cat = "Baseline"
+        elif alg_name in ["F-MAGSO", "PDE-Robust-DE", "OmniPINN-Opt"]:
+            cat = "Proposed"
+        else:
+            cat = stats.get("category", "Standalone")
+
         avg_rank = stats.get("average_rank", 0.0)
         mean_l2 = stats.get("overall_mean_rel_l2", 0.0)
-        std_l2 = stats.get("rel_l2_std", 0.0)
+        std_l2 = stats.get("rel_l2_std", stats.get("overall_mean_std", 0.0))
         runtime = stats.get("overall_mean_runtime_sec", 0.0)
 
         # Highlight top 3 and baseline
         is_baseline = "Buzaev" in alg_name
-        is_proposed = alg_name in ["F-MAGSO", "PDE-Robust-DE", "F-MAGSO (Novel)"]
+        is_proposed = alg_name in ["F-MAGSO", "PDE-Robust-DE", "OmniPINN-Opt"]
 
-        alg_str = alg_name
         if rank <= 3:
             alg_str = rf"\textbf{{{alg_name}}}"
         elif is_proposed:
             alg_str = rf"\textit{{{alg_name}}}"
         elif is_baseline:
             alg_str = rf"\textbf{{{alg_name}}} \textit{{(Baseline)}}"
+        else:
+            alg_str = alg_name
 
         if std_l2 < 1e-12:
             std_str = r"$5.20 \times 10^{-18}$"

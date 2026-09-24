@@ -58,7 +58,7 @@ from hpo.gsa import run_gsa
 from hpo.hybrid_aco_ga import run_hybrid_aco_ga
 from hpo.hybrid_ga_pso import run_hybrid_ga_pso
 from hpo.hybrid_pso_gsa import run_hybrid_pso_gsa
-from hpo.novel_f_magso import run_f_magso
+from hpo.f_magso import run_f_magso
 from hpo.pde_robust_optimizer import run_pde_robust_opt
 from hpo.pso import run_pso
 from utils import ensure_dir, save_json

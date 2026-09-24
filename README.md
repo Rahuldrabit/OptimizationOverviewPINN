@@ -177,15 +177,15 @@ python scripts\reproduce_all.py
 python scripts\reproduce_all.py --quick
 ```
 
-### 2. Novel Proposed Optimizers (F-MAGSO & PDE-Robust-DE)
+### 2. Proposed Optimizers (F-MAGSO & PDE-Robust-DE)
 ```powershell
-# Run Novel F-MAGSO (Fuzzy-Guided Multi-Stage Adaptive Gravitational Swarm Optimizer)
+# Run F-MAGSO (Fuzzy-Guided Multi-Stage Adaptive Gravitational Swarm Optimizer)
 python scripts\run_f_magso.py ode
 python scripts\run_f_magso.py heat --evals 80 --steps 1200
 python scripts\run_f_magso.py burgers --evals 80 --steps 1200
 python scripts\run_f_magso.py wave --evals 80 --steps 1200
 
-# Run Novel PDE-Robust-DE (Physics-Informed Differential Evolution with Adaptive Scaling)
+# Run PDE-Robust-DE (Physics-Informed Differential Evolution with Adaptive Scaling)
 python scripts\run_pde_robust_de.py ode
 python scripts\run_pde_robust_de.py heat --generations 10 --pop-size 20 --steps 1200
 python scripts\run_pde_robust_de.py burgers --generations 10 --pop-size 20 --steps 1200

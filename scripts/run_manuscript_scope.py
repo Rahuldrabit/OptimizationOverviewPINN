@@ -57,7 +57,11 @@ def main() -> None:
     print("\n" + "="*70)
     print("MANUSCRIPT RESULTS READY")
     print("="*70)
-    for rank, (alg, data) in enumerate(results["overall_rankings"].items(), start=1):
+    sorted_rankings = sorted(
+        results["overall_rankings"].items(),
+        key=lambda x: (x[1].get("average_rank", 999.0), x[1].get("overall_mean_rel_l2", 999.0)),
+    )
+    for rank, (alg, data) in enumerate(sorted_rankings, start=1):
         print(f"  #{rank}: {alg:25s} Avg Rank: {data['average_rank']:.2f} | Mean L2: {data['overall_mean_rel_l2']:.6f}")
     print("="*70 + "\n")
 

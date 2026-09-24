@@ -16,7 +16,7 @@ from .fuzzy_aco import run_fuzzy_aco
 from .hybrid_ga_pso import run_hybrid_ga_pso
 from .hybrid_pso_gsa import run_hybrid_pso_gsa
 from .hybrid_aco_ga import run_hybrid_aco_ga
-from .novel_f_magso import run_f_magso
+from .f_magso import run_f_magso
 from .pde_robust_optimizer import run_pde_robust_opt
 from .two_stage_evo import run_two_stage_evo
 from .deap_ga import run_deap_ga, run_deap_ga_pinn

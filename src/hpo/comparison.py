@@ -26,7 +26,7 @@ try:
     from .hybrid_ga_pso import run_hybrid_ga_pso
     from .hybrid_pso_gsa import run_hybrid_pso_gsa
     from .hybrid_aco_ga import run_hybrid_aco_ga
-    from .novel_f_magso import run_f_magso
+    from .f_magso import run_f_magso
     from .omnipinn_optimizer import run_omnipinn_opt
     from .pde_robust_optimizer import run_pde_robust_opt
     from .two_stage_evo import run_two_stage_evo
@@ -42,7 +42,7 @@ except (ImportError, ValueError):
     from hpo.hybrid_ga_pso import run_hybrid_ga_pso
     from hpo.hybrid_pso_gsa import run_hybrid_pso_gsa
     from hpo.hybrid_aco_ga import run_hybrid_aco_ga
-    from hpo.novel_f_magso import run_f_magso
+    from hpo.f_magso import run_f_magso
     from hpo.omnipinn_optimizer import run_omnipinn_opt
     from hpo.pde_robust_optimizer import run_pde_robust_opt
     from hpo.two_stage_evo import run_two_stage_evo
@@ -132,12 +132,6 @@ ALGORITHM_REGISTRY: dict[str, Callable[..., dict[str, Any]]] = {
         n_steps=steps
     ),
     "F-MAGSO": lambda out_dir, bmark, seed, steps, quick: run_f_magso(
-        out_dir, bmark, seed=seed,
-        pop_size=6 if quick else 12,
-        max_evals=30 if quick else 80,
-        n_steps=steps
-    ),
-    "F-MAGSO (Novel)": lambda out_dir, bmark, seed, steps, quick: run_f_magso(
         out_dir, bmark, seed=seed,
         pop_size=6 if quick else 12,
         max_evals=30 if quick else 80,
@@ -432,8 +426,11 @@ def run_experiment_grid(
             "benchmark_ranks": {bm: alg_ranks[alg][i] for i, bm in enumerate(config.benchmarks)},
         }
 
-    # Sort algorithms by average rank
-    sorted_overall = sorted(global_rankings.keys(), key=lambda a: global_rankings[a]["average_rank"])
+    # Sort algorithms by average rank (breaking ties with overall mean relative L2 error)
+    sorted_overall = sorted(
+        global_rankings.keys(),
+        key=lambda a: (global_rankings[a]["average_rank"], global_rankings[a]["overall_mean_rel_l2"]),
+    )
     results["overall_rankings"] = {a: global_rankings[a] for a in sorted_overall}
 
     # Save complete benchmark results JSON

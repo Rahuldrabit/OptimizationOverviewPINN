@@ -424,7 +424,7 @@ def run_speed_test_for_algorithm(
                     break
                 fitness[i] = tracker.evaluate(X[i])
 
-    elif alg_name in ("F-MAGSO", "F-MAGSO (Novel)"):
+    elif alg_name == "F-MAGSO":
         pop_size = 10
         flc = FuzzyController()
         G0, alpha = 100.0, 15.0

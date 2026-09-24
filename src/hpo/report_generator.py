@@ -39,7 +39,6 @@ COLOR_MAP = {
     "ACO-GA Hybrid": "#7f7f7f",
     # Proposed Algorithms
     "F-MAGSO": "#e41a1c",
-    "F-MAGSO (Novel)": "#e41a1c",
     "PDE-Robust-DE": "#ff7f00",
     "Two-Stage Evo (Buzaev 2026)": "#33a02c",
 }
@@ -53,7 +52,6 @@ STYLE_MAP = {
     "GA-PSO Hybrid": "-.", "PSO-GSA Hybrid": "-.", "ACO-GA Hybrid": "-.",
     # Baselines / Proposed
     "F-MAGSO": "-",
-    "F-MAGSO (Novel)": "-",
     "PDE-Robust-DE": "--",
     "Two-Stage Evo (Buzaev 2026)": ":",
 }
@@ -206,11 +204,17 @@ def generate_all_plots(results: dict[str, Any], output_dir: str) -> dict[str, st
     min_div, max_div = (min(all_diversities), max(all_diversities)) if all_diversities else (0.0, 1.0)
 
     # Select top performers, ensuring key proposed algorithms are included for direct comparison
+    sorted_algs_by_rank = sorted(
+        rankings.keys(),
+        key=lambda a: (rankings[a].get("average_rank", 999.0), rankings[a].get("overall_mean_rel_l2", 999.0)),
+    )
+    alg_to_rank = {a: i + 1 for i, a in enumerate(sorted_algs_by_rank)}
+
     selected_algs = []
-    for key_alg in ["F-MAGSO", "PDE-Robust-DE", "F-MAGSO (Novel)"]:
+    for key_alg in ["F-MAGSO", "PDE-Robust-DE"]:
         if key_alg in rankings and key_alg not in selected_algs:
             selected_algs.append(key_alg)
-    for alg in rankings.keys():
+    for alg in sorted_algs_by_rank:
         if alg not in selected_algs:
             selected_algs.append(alg)
         if len(selected_algs) >= 6:
@@ -237,7 +241,8 @@ def generate_all_plots(results: dict[str, Any], output_dir: str) -> dict[str, st
         values += values[:1]
 
         color = COLOR_MAP.get(alg, "#333333")
-        ax.plot(angles, values, label=f"{alg} (Rank #{list(rankings.keys()).index(alg)+1})", color=color, linewidth=2.2)
+        display_alg = "F-MAGSO" if "F-MAGSO" in alg else alg
+        ax.plot(angles, values, label=f"{display_alg} (Rank #{alg_to_rank[alg]})", color=color, linewidth=2.2)
         ax.fill(angles, values, color=color, alpha=0.12)
 
     ax.set_theta_offset(np.pi / 2)
@@ -300,11 +305,19 @@ def generate_markdown_report(results: dict[str, Any], plot_files: dict[str, str]
     summary = results["benchmark_summary"]
     rankings = results["overall_rankings"]
 
+    # Explicitly sort algorithms by Friedman average rank
+    sorted_rankings = dict(
+        sorted(
+            rankings.items(),
+            key=lambda x: (x[1].get("average_rank", 999.0), x[1].get("overall_mean_rel_l2", 999.0)),
+        )
+    )
+
     # Identify winners
-    best_overall_alg = list(rankings.keys())[0]
-    best_standalone_alg = next((a for a in rankings.keys() if a in ["GA", "PSO", "ACO", "GSA"]), None)
-    best_fuzzy_alg = next((a for a in rankings.keys() if "Fuzzy" in a), None)
-    best_hybrid_alg = next((a for a in rankings.keys() if "Hybrid" in a), None)
+    best_overall_alg = list(sorted_rankings.keys())[0]
+    best_standalone_alg = next((a for a in sorted_rankings.keys() if a in ["GA", "PSO", "ACO", "GSA"]), None)
+    best_fuzzy_alg = next((a for a in sorted_rankings.keys() if "Fuzzy" in a), None)
+    best_hybrid_alg = next((a for a in sorted_rankings.keys() if "Hybrid" in a), None)
 
     report = []
     report.append("# Physics-Informed Neural Network (PINN) HPO Algorithm Investigation")
@@ -337,7 +350,7 @@ def generate_markdown_report(results: dict[str, Any], plot_files: dict[str, str]
     report.append("| Rank | Algorithm | Category | Avg Rank (Friedman) | Overall Mean Rel L2 | Rel L2 Std Dev | Mean Runtime (s) | Mean Diversity |")
     report.append("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |")
 
-    for rank_idx, (alg, data) in enumerate(rankings.items(), start=1):
+    for rank_idx, (alg, data) in enumerate(sorted_rankings.items(), start=1):
         cat = "Hybrid" if "Hybrid" in alg else ("Fuzzy" if "Fuzzy" in alg else "Standalone")
         err_str = f"{data['overall_mean_rel_l2']:.6f}" if data['overall_mean_rel_l2'] >= 1e-4 else f"{data['overall_mean_rel_l2']:.2e}"
         std_str = f"{data['overall_mean_std']:.6f}" if data['overall_mean_std'] >= 1e-4 else f"{data['overall_mean_std']:.2e}"
