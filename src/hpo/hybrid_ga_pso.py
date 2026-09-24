@@ -20,6 +20,7 @@ try:
         clip_int,
         decode_solution,
     )
+    from .fuzzy_controller import compute_population_diversity
 except (ImportError, ValueError):
     from training.pinn_trainer import TrainConfig, train_pinn
     from utils import ensure_dir, save_json
@@ -31,6 +32,7 @@ except (ImportError, ValueError):
         clip_int,
         decode_solution,
     )
+    from hpo.fuzzy_controller import compute_population_diversity
 
 
 def run_hybrid_ga_pso(
@@ -67,6 +69,7 @@ def run_hybrid_ga_pso(
     gbest = X[best_idx].copy()
     gbest_fit = float(fitness[best_idx])
     history = [gbest_fit]
+    diversity_history = [{"epoch": 0, "diversity": compute_population_diversity(X, lb, ub)}]
 
     for epoch in range(n_epochs):
         # ----------------------------------------------------
@@ -137,9 +140,16 @@ def run_hybrid_ga_pso(
 
             history.append(gbest_fit)
 
+        # Track diversity at the end of each hybrid epoch
+        diversity_history.append({
+            "epoch": epoch + 1,
+            "diversity": compute_population_diversity(X, lb, ub),
+        })
+
     best_cfg = decode_solution(gbest, space, base)
     best_metrics = train_pinn(best_cfg)
     best_metrics["history"] = history
+    best_metrics["diversity_history"] = diversity_history
     best_metrics["optimizer_name"] = "GA-PSO Hybrid"
 
     ensure_dir(out_dir)

@@ -21,6 +21,7 @@ try:
         clip_int,
         decode_solution,
     )
+    from .fuzzy_controller import compute_population_diversity
 except (ImportError, ValueError):
     from training.pinn_trainer import TrainConfig, train_pinn
     from utils import ensure_dir, save_json
@@ -32,6 +33,7 @@ except (ImportError, ValueError):
         clip_int,
         decode_solution,
     )
+    from hpo.fuzzy_controller import compute_population_diversity
 
 
 def run_hybrid_pso_gsa(
@@ -70,6 +72,7 @@ def run_hybrid_pso_gsa(
     gbest = X[best_idx].copy()
     gbest_fit = float(fitness[best_idx])
     history = [gbest_fit]
+    diversity_history = [{"iteration": 0, "diversity": compute_population_diversity(X, lb, ub)}]
 
     for it in range(1, int(n_iterations) + 1):
         # 1. Decay G(t) and compute masses
@@ -118,10 +121,15 @@ def run_hybrid_pso_gsa(
                 gbest = X[i].copy()
 
         history.append(gbest_fit)
+        diversity_history.append({
+            "iteration": it,
+            "diversity": compute_population_diversity(X, lb, ub),
+        })
 
     best_cfg = decode_solution(gbest, space, base)
     best_metrics = train_pinn(best_cfg)
     best_metrics["history"] = history
+    best_metrics["diversity_history"] = diversity_history
     best_metrics["optimizer_name"] = "PSO-GSA Hybrid"
 
     ensure_dir(out_dir)

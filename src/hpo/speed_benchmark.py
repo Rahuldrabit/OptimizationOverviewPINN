@@ -602,6 +602,7 @@ def run_full_convergence_speed_benchmark(
     seeds: list[int] = [0, 1, 2, 3, 4],
     max_evals: int = 60,
     output_dir: str = "outputs/speed_benchmark",
+    n_steps: int = 1200,
 ) -> dict[str, Any]:
     """Execute rigorous convergence speed testing across all 12 algorithms."""
     ensure_dir(output_dir)
@@ -614,7 +615,6 @@ def run_full_convergence_speed_benchmark(
         "ACO", "Fuzzy-ACO", "ACO-GA Hybrid", "GSA"
     ]
 
-
     all_results: dict[str, list[dict[str, Any]]] = {alg: [] for alg in algorithms}
 
     print(f"\n{'='*75}")
@@ -626,7 +626,7 @@ def run_full_convergence_speed_benchmark(
         print(f"-> Testing {alg:16s} ...", end="", flush=True)
         t_start = time.perf_counter()
         for s in seeds:
-            tracker = ConvergenceSpeedTracker(benchmark_type=benchmark_type, seed=s)
+            tracker = ConvergenceSpeedTracker(benchmark_type=benchmark_type, seed=s, n_steps=n_steps)
             res = run_speed_test_for_algorithm(alg, tracker, max_evals=max_evals, seed=s)
             all_results[alg].append(res)
         elapsed = time.perf_counter() - t_start

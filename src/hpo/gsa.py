@@ -16,6 +16,7 @@ try:
         clip_int,
         decode_solution,
     )
+    from .fuzzy_controller import compute_population_diversity
 except (ImportError, ValueError):
     from training.pinn_trainer import TrainConfig, train_pinn
     from utils import ensure_dir, save_json
@@ -27,6 +28,7 @@ except (ImportError, ValueError):
         clip_int,
         decode_solution,
     )
+    from hpo.fuzzy_controller import compute_population_diversity
 
 
 
@@ -72,6 +74,7 @@ def run_gsa(
     best_x = X[best_idx].copy()
     best_f = float(fitness[best_idx])
     history = [best_f]
+    diversity_history = [{"iteration": 0, "diversity": compute_population_diversity(X, lb, ub)}]
 
     for it in range(1, int(n_iterations) + 1):
         # Gravitational constant decay
@@ -125,10 +128,15 @@ def run_gsa(
                 best_x = X[i].copy()
 
         history.append(best_f)
+        diversity_history.append({
+            "iteration": it,
+            "diversity": compute_population_diversity(X, lb, ub),
+        })
 
     best_cfg = _decode_position(best_x, space, base)
     best_metrics = train_pinn(best_cfg)
     best_metrics["history"] = history
+    best_metrics["diversity_history"] = diversity_history
     best_metrics["optimizer_name"] = "GSA"
 
     ensure_dir(out_dir)

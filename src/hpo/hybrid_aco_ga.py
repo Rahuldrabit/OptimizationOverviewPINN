@@ -20,6 +20,7 @@ try:
         clip_int,
         decode_solution,
     )
+    from .fuzzy_controller import compute_population_diversity
 except (ImportError, ValueError):
     from training.pinn_trainer import TrainConfig, train_pinn
     from utils import ensure_dir, save_json
@@ -31,6 +32,7 @@ except (ImportError, ValueError):
         clip_int,
         decode_solution,
     )
+    from hpo.fuzzy_controller import compute_population_diversity
 
 
 def run_hybrid_aco_ga(
@@ -66,8 +68,9 @@ def run_hybrid_aco_ga(
 
     best_f = float(np.min(f))
     history = [best_f]
+    diversity_history = [{"iteration": 0, "diversity": compute_population_diversity(A, lb, ub)}]
 
-    for _ in range(aco_iterations):
+    for it in range(1, int(aco_iterations) + 1):
         order = np.argsort(f)
         A = A[order]
         f = f[order]
@@ -105,6 +108,10 @@ def run_hybrid_aco_ga(
 
         best_f = float(f[0])
         history.append(best_f)
+        diversity_history.append({
+            "iteration": it,
+            "diversity": compute_population_diversity(A, lb, ub),
+        })
 
     # ----------------------------------------------------
     # Phase 2: Seed GA Population from Top ACO Solutions
@@ -116,7 +123,7 @@ def run_hybrid_aco_ga(
     # ----------------------------------------------------
     # Phase 3: GA Evolutionary Fine-Tuning
     # ----------------------------------------------------
-    for _ in range(ga_generations):
+    for g in range(1, int(ga_generations) + 1):
         parents = []
         for _ in range(max(2, pop_size // 3)):
             tourn_idx = rng.choice(pop_size, size=3, replace=False)
@@ -149,10 +156,15 @@ def run_hybrid_aco_ga(
             best_ind = pop[best_idx].copy()
 
         history.append(best_f)
+        diversity_history.append({
+            "iteration": int(aco_iterations) + g,
+            "diversity": compute_population_diversity(pop, lb, ub),
+        })
 
     best_cfg = decode_solution(best_ind, space, base)
     best_metrics = train_pinn(best_cfg)
     best_metrics["history"] = history
+    best_metrics["diversity_history"] = diversity_history
     best_metrics["optimizer_name"] = "ACO-GA Hybrid"
 
     ensure_dir(out_dir)

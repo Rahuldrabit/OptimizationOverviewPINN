@@ -62,7 +62,7 @@ def run_f_magso(
     flc = FuzzyController()
 
     eval_count = 0
-    history: list[float] = []
+    eval_history: list[float] = []
     best_so_far = float("inf")
     best_x = np.zeros(dim, dtype=float)
 
@@ -75,7 +75,7 @@ def run_f_magso(
         if fit < best_so_far:
             best_so_far = fit
             best_x = x.copy()
-        history.append(best_so_far)
+        eval_history.append(best_so_far)
         return fit
 
     # ----------------------------------------------------
@@ -87,11 +87,17 @@ def run_f_magso(
     fitness = np.array([objective(x) for x in X], dtype=float)
     P_fit = fitness.copy()
 
+    # Iteration 0 tracking
+    history = [best_so_far]
+    diversity_history = [{"iteration": 0, "diversity": compute_population_diversity(X, lb, ub)}]
+
     G0 = 100.0
     alpha = 15.0
     prev_gbest_fit = best_so_far
+    iteration_idx = 0
 
     while eval_count < max_evals:
+        iteration_idx += 1
         it_ratio = float(eval_count / max_evals)
 
         # ------------------------------------------------
@@ -191,9 +197,18 @@ def run_f_magso(
                 P_fit[i] = fit
                 P[i] = X[i].copy()
 
+        # Record per-iteration metrics
+        history.append(best_so_far)
+        diversity_history.append({
+            "iteration": iteration_idx,
+            "diversity": compute_population_diversity(X, lb, ub),
+        })
+
     best_cfg = decode_solution(best_x, space, base)
     best_metrics = train_pinn(best_cfg)
     best_metrics["history"] = history
+    best_metrics["eval_history"] = eval_history
+    best_metrics["diversity_history"] = diversity_history
     best_metrics["optimizer_name"] = "F-MAGSO (Novel)"
 
     ensure_dir(out_dir)

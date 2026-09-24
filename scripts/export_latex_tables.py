@@ -155,8 +155,11 @@ def sync_figures_to_paper() -> None:
 
     source_dirs = [
         project_root / "outputs" / "final_manuscript" / "plots",
+        project_root / "outputs" / "final_manuscript" / "speed_benchmark" / "plots",
+        project_root / "outputs" / "final_manuscript" / "ablation" / "plots",
         project_root / "outputs" / "comparison" / "plots",
         project_root / "outputs" / "speed_benchmark" / "plots",
+        project_root / "outputs" / "ablation" / "plots",
     ]
 
     copied = 0

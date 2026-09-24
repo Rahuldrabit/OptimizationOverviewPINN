@@ -179,6 +179,7 @@ def _run_single_job(
                 and ckpt.get("quick") == quick
                 and "metrics" in ckpt
                 and "elapsed" in ckpt
+                and len(ckpt["metrics"].get("diversity_history", [])) > 0
             ):
                 return ckpt["metrics"], float(ckpt["elapsed"]), True
         except Exception:

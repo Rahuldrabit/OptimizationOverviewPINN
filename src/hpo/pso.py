@@ -122,13 +122,9 @@ def run_pso(
         metrics = train_pinn(cfg)
         return float(metrics["val_rel_l2"])
 
-    try:
-        from pyswarm import pso
-        best_x, best_f = pso(objective, lb, ub, swarmsize=int(swarmsize), maxiter=int(maxiter))
-        history = [float(best_f)]
-        diversity_history: list[dict[str, Any]] = []  # pyswarm 0.6 exposes no per-iteration swarm hook
-    except Exception:
-        best_x, best_f, history, diversity_history = _pso_numpy(objective, lb, ub, swarmsize=int(swarmsize), maxiter=int(maxiter), seed=seed)
+    best_x, best_f, history, diversity_history = _pso_numpy(
+        objective, lb, ub, swarmsize=int(swarmsize), maxiter=int(maxiter), seed=seed
+    )
 
     best_cfg = _decode_position(np.asarray(best_x), space, base)
     best_metrics = train_pinn(best_cfg)

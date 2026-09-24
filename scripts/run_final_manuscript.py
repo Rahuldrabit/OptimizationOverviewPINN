@@ -36,14 +36,15 @@ from hpo.comparison import ExperimentConfig, run_experiment_grid
 from hpo.report_generator import generate_all_plots, generate_markdown_report
 from utils import ensure_dir, save_json
 
-# Import ablation runners
 from scripts.run_ablation import (
     run_f_magso_ablation,
     run_pde_robust_de_ablation,
     run_fuzzy_ablation,
     run_hybrids_ablation,
+    generate_ablation_plots,
     print_summary_table,
 )
+from hpo.speed_benchmark import run_full_convergence_speed_benchmark
 from scripts.export_latex_tables import (
     export_ranking_latex_table,
     export_speed_latex_table,
@@ -147,6 +148,7 @@ def main() -> None:
     )
     parser.add_argument("--skip-grid", action="store_true", help="Skip the main benchmark grid")
     parser.add_argument("--skip-ablation", action="store_true", help="Skip the ablation studies")
+    parser.add_argument("--skip-speed", action="store_true", help="Skip the convergence speed benchmark")
     parser.add_argument(
         "--no-resume",
         action="store_true",
@@ -298,10 +300,38 @@ def main() -> None:
         save_json(ablation_summary_file, ablation_results)
         print(f"\n[+] Ablation summary saved to: {ablation_summary_file}")
 
+        # Generate publication figures for ablation studies
+        plots_dir = os.path.join(base_out, "plots")
+        ensure_dir(plots_dir)
+        print(f"\n[+] Generating publication ablation figures in '{plots_dir}'...")
+        generate_ablation_plots(ablation_results, plots_dir)
+        generate_ablation_plots(ablation_results, os.path.join(ablation_dir, "plots"))
+
         # Export ablation LaTeX table
         export_ablation_latex_table(ablation_results, os.path.join(latex_dir, "table_ablation.tex"))
     else:
         print("\n[!] Skipping Stage 2 (Ablation Studies) as requested.")
+
+    # =========================================================================
+    # PART 2.5: High-Resolution Convergence Speed Benchmark
+    # =========================================================================
+    if not args.skip_speed:
+        print("\n" + "#" * 80)
+        print("STAGE 2.5: HIGH-RESOLUTION CONVERGENCE SPEED BENCHMARK (13 ALGORITHMS)")
+        print("#" * 80 + "\n")
+        speed_dir = os.path.join(base_out, "speed_benchmark")
+        ensure_dir(speed_dir)
+        speed_seeds = seeds if len(seeds) > 1 else [0]
+        speed_evals = 30 if args.quick else 60
+        run_full_convergence_speed_benchmark(
+            benchmark_type=args.benchmarks[0],
+            seeds=speed_seeds,
+            max_evals=speed_evals,
+            output_dir=speed_dir,
+            n_steps=1 if args.quick else n_steps,
+        )
+    else:
+        print("\n[!] Skipping Stage 2.5 (Convergence Speed Benchmark) as requested.")
 
     # =========================================================================
     # PART 3: Publication Artifacts Synchronization

@@ -37,6 +37,10 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
+import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 # Add project root and src to path
 project_root = Path(__file__).parent.parent
@@ -65,7 +69,7 @@ def run_f_magso_ablation(
 ) -> dict[str, dict[str, Any]]:
     pop_size = 6 if quick else 12
     max_evals = 24 if quick else 60
-    steps = 60 if quick else n_steps
+    steps = 1 if quick else n_steps
 
     variants = {
         "F-MAGSO (Full Proposed)": {
@@ -147,7 +151,7 @@ def run_pde_robust_de_ablation(
 ) -> dict[str, dict[str, Any]]:
     sol_per_pop = 6 if quick else 16
     n_generations = 4 if quick else 8
-    steps = 60 if quick else n_steps
+    steps = 1 if quick else n_steps
 
     variants = {
         "PDE-Robust-DE (Full Adaptive + BounceBack)": {
@@ -209,7 +213,7 @@ def run_pde_robust_de_ablation(
 def run_fuzzy_ablation(
     benchmark: str, seed: int, quick: bool, n_steps: int, out_dir: str, resume: bool = True
 ) -> dict[str, dict[str, Any]]:
-    steps = 60 if quick else n_steps
+    steps = 1 if quick else n_steps
     results: dict[str, dict[str, Any]] = {}
     print(f"\n{'='*70}\n[ABLATION 3] Fuzzy Logic Dynamic Adaptation vs Static Baselines on '{benchmark.upper()}'\n{'='*70}")
 
@@ -256,7 +260,7 @@ def run_fuzzy_ablation(
 def run_hybrids_ablation(
     benchmark: str, seed: int, quick: bool, n_steps: int, out_dir: str, resume: bool = True
 ) -> dict[str, dict[str, Any]]:
-    steps = 60 if quick else n_steps
+    steps = 1 if quick else n_steps
     results: dict[str, dict[str, Any]] = {}
     print(f"\n{'='*70}\n[ABLATION 4] Hybrid Synergy vs Constituent Standalone Optimizers on '{benchmark.upper()}'\n{'='*70}")
 
@@ -315,6 +319,179 @@ def print_summary_table(title: str, results: dict[str, dict[str, Any]]) -> None:
     print(f"{'-'*75}\n")
 
 
+def generate_ablation_plots(ablation_data: dict[str, Any], output_dir: str) -> dict[str, str]:
+    """Generate publication-quality figures for all four ablation studies."""
+    ensure_dir(output_dir)
+    generated: dict[str, str] = {}
+
+    # 1. F-MAGSO Component Ablation
+    f_magso = ablation_data.get("f_magso", {})
+    if f_magso:
+        fig, ax = plt.subplots(figsize=(10, 5))
+        names = list(f_magso.keys())
+        errs = [f_magso[k].get("val_rel_l2", 1.0) for k in names]
+        colors = ["#e41a1c" if "Full" in n else "#377eb8" for n in names]
+        short_names = [n.replace("F-MAGSO ", "") for n in names]
+
+        bars = ax.barh(short_names, errs, color=colors, alpha=0.85, edgecolor="black", height=0.55)
+        ax.set_xscale("log")
+        ax.set_xlabel("Validation Relative L2 Error (Log Scale, Lower is Better)", fontsize=11, fontweight="bold")
+        ax.set_title("Ablation 1: F-MAGSO Architectural Component Contributions", fontsize=13, fontweight="bold")
+        ax.grid(True, which="both", axis="x", linestyle=":", alpha=0.6)
+
+        for bar in bars:
+            width = bar.get_width()
+            ax.text(width * 1.05, bar.get_y() + bar.get_height() / 2, f"{width:.2e}", va="center", fontsize=9, fontweight="bold")
+
+        plt.tight_layout()
+        p = os.path.join(output_dir, "f_magso_ablation.png")
+        plt.savefig(p, dpi=200, bbox_inches="tight")
+        plt.close()
+        generated["f_magso"] = p
+
+    # 2. PDE-Robust-DE Mechanics Ablation
+    pde_de = ablation_data.get("pde_robust_de", {})
+    if pde_de:
+        fig, ax = plt.subplots(figsize=(9, 4.5))
+        names = list(pde_de.keys())
+        errs = [pde_de[k].get("val_rel_l2", 1.0) for k in names]
+        colors = ["#ff7f00" if "Full" in n else "#4daf4a" for n in names]
+        short_names = [n.replace("PDE-Robust-DE ", "") for n in names]
+
+        bars = ax.barh(short_names, errs, color=colors, alpha=0.85, edgecolor="black", height=0.5)
+        ax.set_xscale("log")
+        ax.set_xlabel("Validation Relative L2 Error (Log Scale, Lower is Better)", fontsize=11, fontweight="bold")
+        ax.set_title("Ablation 2: PDE-Robust-DE Adaptive Scaling & Boundary Handling", fontsize=13, fontweight="bold")
+        ax.grid(True, which="both", axis="x", linestyle=":", alpha=0.6)
+
+        for bar in bars:
+            width = bar.get_width()
+            ax.text(width * 1.05, bar.get_y() + bar.get_height() / 2, f"{width:.2e}", va="center", fontsize=9, fontweight="bold")
+
+        plt.tight_layout()
+        p = os.path.join(output_dir, "pde_robust_de_ablation.png")
+        plt.savefig(p, dpi=200, bbox_inches="tight")
+        plt.close()
+        generated["pde_robust_de"] = p
+
+    # 3. Fuzzy Dynamic Adaptation vs Static Baselines
+    fuzzy = ablation_data.get("fuzzy", {})
+    if fuzzy:
+        fig, ax = plt.subplots(figsize=(9, 5))
+        base_names = ["PSO", "GA", "ACO"]
+        static_errs = [fuzzy.get(f"{b} (Static)", {}).get("val_rel_l2", np.nan) for b in base_names]
+        dynamic_errs = [fuzzy.get(f"Fuzzy-{b} (Dynamic)", {}).get("val_rel_l2", np.nan) for b in base_names]
+
+        x = np.arange(len(base_names))
+        w = 0.35
+
+        ax.bar(x - w / 2, static_errs, w, label="Static Parameter Control", color="#999999", alpha=0.85, edgecolor="black")
+        ax.bar(x + w / 2, dynamic_errs, w, label="Fuzzy-Adaptive Closed-Loop", color="#984ea3", alpha=0.85, edgecolor="black")
+
+        ax.set_yscale("log")
+        ax.set_xticks(x)
+        ax.set_xticklabels(base_names, fontsize=12, fontweight="bold")
+        ax.set_ylabel("Validation Relative L2 Error (Log Scale)", fontsize=11, fontweight="bold")
+        ax.set_title("Ablation 3: Impact of Mamdani Fuzzy Closed-Loop Dynamic Adaptation", fontsize=13, fontweight="bold")
+        ax.grid(True, which="both", axis="y", linestyle=":", alpha=0.6)
+        ax.legend(fontsize=11)
+
+        plt.tight_layout()
+        p = os.path.join(output_dir, "fuzzy_dynamic_adaptation.png")
+        plt.savefig(p, dpi=200, bbox_inches="tight")
+        plt.close()
+        generated["fuzzy"] = p
+
+    # 4. Hybrid Synergy Analysis
+    hybrids = ablation_data.get("hybrids", {})
+    if hybrids:
+        fig, ax = plt.subplots(figsize=(11, 5))
+        names = list(hybrids.keys())
+        errs = [hybrids[k].get("val_rel_l2", 1.0) for k in names]
+        colors = ["#e41a1c" if "Hybrid" in n else "#377eb8" for n in names]
+
+        bars = ax.barh(names, errs, color=colors, alpha=0.85, edgecolor="black", height=0.55)
+        ax.set_xscale("log")
+        ax.set_xlabel("Validation Relative L2 Error (Log Scale, Lower is Better)", fontsize=11, fontweight="bold")
+        ax.set_title("Ablation 4: Hybrid Synergy vs Constituent Standalone Optimizers", fontsize=13, fontweight="bold")
+        ax.grid(True, which="both", axis="x", linestyle=":", alpha=0.6)
+
+        for bar in bars:
+            width = bar.get_width()
+            ax.text(width * 1.05, bar.get_y() + bar.get_height() / 2, f"{width:.2e}", va="center", fontsize=9, fontweight="bold")
+
+        plt.tight_layout()
+        p = os.path.join(output_dir, "hybrid_synergy_ablation.png")
+        plt.savefig(p, dpi=200, bbox_inches="tight")
+        plt.close()
+        generated["hybrids"] = p
+
+    # 5. Master Combined 4-Panel Ablation Summary Figure
+    if f_magso and pde_de and fuzzy and hybrids:
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        fig.suptitle("Comprehensive Ablation Analysis Across Metaheuristic Components & Mechanics", fontsize=16, fontweight="bold", y=0.99)
+
+        # Panel A: F-MAGSO
+        ax_a = axes[0, 0]
+        names = list(f_magso.keys())
+        errs = [f_magso[k].get("val_rel_l2", 1.0) for k in names]
+        colors = ["#e41a1c" if "Full" in n else "#377eb8" for n in names]
+        short_names = [n.replace("F-MAGSO ", "") for n in names]
+        ax_a.barh(short_names, errs, color=colors, alpha=0.85, edgecolor="black", height=0.55)
+        ax_a.set_xscale("log")
+        ax_a.set_title("(A) F-MAGSO Component Contributions", fontsize=12, fontweight="bold")
+        ax_a.set_xlabel("Validation Rel L2 Error (Log Scale)", fontsize=10)
+        ax_a.grid(True, which="both", axis="x", linestyle=":", alpha=0.6)
+
+        # Panel B: PDE-Robust-DE
+        ax_b = axes[0, 1]
+        names = list(pde_de.keys())
+        errs = [pde_de[k].get("val_rel_l2", 1.0) for k in names]
+        colors = ["#ff7f00" if "Full" in n else "#4daf4a" for n in names]
+        short_names = [n.replace("PDE-Robust-DE ", "") for n in names]
+        ax_b.barh(short_names, errs, color=colors, alpha=0.85, edgecolor="black", height=0.5)
+        ax_b.set_xscale("log")
+        ax_b.set_title("(B) PDE-Robust-DE Adaptation & Boundary", fontsize=12, fontweight="bold")
+        ax_b.set_xlabel("Validation Rel L2 Error (Log Scale)", fontsize=10)
+        ax_b.grid(True, which="both", axis="x", linestyle=":", alpha=0.6)
+
+        # Panel C: Fuzzy dynamic vs static
+        ax_c = axes[1, 0]
+        base_names = ["PSO", "GA", "ACO"]
+        static_errs = [fuzzy.get(f"{b} (Static)", {}).get("val_rel_l2", np.nan) for b in base_names]
+        dynamic_errs = [fuzzy.get(f"Fuzzy-{b} (Dynamic)", {}).get("val_rel_l2", np.nan) for b in base_names]
+        x = np.arange(len(base_names))
+        w = 0.35
+        ax_c.bar(x - w / 2, static_errs, w, label="Static Baseline", color="#999999", alpha=0.85, edgecolor="black")
+        ax_c.bar(x + w / 2, dynamic_errs, w, label="Fuzzy-Adaptive", color="#984ea3", alpha=0.85, edgecolor="black")
+        ax_c.set_yscale("log")
+        ax_c.set_xticks(x)
+        ax_c.set_xticklabels(base_names, fontsize=11, fontweight="bold")
+        ax_c.set_ylabel("Validation Rel L2 Error (Log Scale)", fontsize=10)
+        ax_c.set_title("(C) Fuzzy Dynamic Adaptation vs Static Baselines", fontsize=12, fontweight="bold")
+        ax_c.grid(True, which="both", axis="y", linestyle=":", alpha=0.6)
+        ax_c.legend(fontsize=9)
+
+        # Panel D: Hybrid Synergy
+        ax_d = axes[1, 1]
+        names = list(hybrids.keys())
+        errs = [hybrids[k].get("val_rel_l2", 1.0) for k in names]
+        colors = ["#e41a1c" if "Hybrid" in n else "#377eb8" for n in names]
+        ax_d.barh(names, errs, color=colors, alpha=0.85, edgecolor="black", height=0.55)
+        ax_d.set_xscale("log")
+        ax_d.set_title("(D) Hybrid Synergy vs Constituents", fontsize=12, fontweight="bold")
+        ax_d.set_xlabel("Validation Rel L2 Error (Log Scale)", fontsize=10)
+        ax_d.grid(True, which="both", axis="x", linestyle=":", alpha=0.6)
+
+        plt.tight_layout()
+        master_p = os.path.join(output_dir, "comprehensive_ablation_summary.png")
+        plt.savefig(master_p, dpi=200, bbox_inches="tight")
+        plt.close()
+        generated["comprehensive_summary"] = master_p
+
+    return generated
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run PINN HPO Ablation Studies")
     parser.add_argument("benchmark", nargs="?", default="ode", help="Benchmark PDE (ode, heat, burgers, wave)")
@@ -357,7 +534,15 @@ def main() -> None:
 
     summary_file = os.path.join(out_dir, "ablation_summary.json")
     save_json(summary_file, all_data)
-    print(f"\n[+] Full ablation results saved to: {summary_file}\n")
+    print(f"\n[+] Full ablation results saved to: {summary_file}")
+
+    # Generate publication figures for ablation studies
+    plots_dir = os.path.join(out_dir, "plots")
+    print(f"[+] Generating publication ablation figures in: {plots_dir} ...")
+    plot_files = generate_ablation_plots(all_data, plots_dir)
+    for p_name, p_path in plot_files.items():
+        print(f"    - {p_name}: {p_path}")
+    print("\n")
 
 
 if __name__ == "__main__":

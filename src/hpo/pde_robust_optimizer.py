@@ -15,6 +15,7 @@ try:
         clip_int,
         decode_solution,
     )
+    from .fuzzy_controller import compute_population_diversity
 except (ImportError, ValueError):
     from training.pinn_trainer import TrainConfig, train_pinn
     from utils import ensure_dir, save_json
@@ -26,6 +27,7 @@ except (ImportError, ValueError):
         clip_int,
         decode_solution,
     )
+    from hpo.fuzzy_controller import compute_population_diversity
 
 def _decode_solution(solution: np.ndarray, space: SearchSpace, base: TrainConfig) -> TrainConfig:
     layers = clip_int(solution[0], space.hidden_layers_min, space.hidden_layers_max)
@@ -89,6 +91,7 @@ def run_pde_robust_opt(
     best_fit = fitnesses[best_idx]
     
     history = [best_fit]
+    diversity_history = [{"generation": 0, "diversity": compute_population_diversity(pop, lb, ub)}]
 
     # Adaptive parameters (JADE style)
     mu_F = 0.5
@@ -160,6 +163,10 @@ def run_pde_robust_opt(
         pop = next_pop
         fitnesses = next_fitnesses
         history.append(best_fit)
+        diversity_history.append({
+            "generation": gen + 1,
+            "diversity": compute_population_diversity(pop, lb, ub),
+        })
 
         # Adapt mu_F and mu_CR based on successful mutations
         if adaptive and len(successful_F) > 0:
@@ -171,6 +178,7 @@ def run_pde_robust_opt(
     best_cfg = _decode_solution(best_ind, space, base)
     best_metrics = train_pinn(best_cfg)
     best_metrics["history"] = history
+    best_metrics["diversity_history"] = diversity_history
     best_metrics["optimizer_name"] = "PDE-Robust-DE"
 
     ensure_dir(out_dir)

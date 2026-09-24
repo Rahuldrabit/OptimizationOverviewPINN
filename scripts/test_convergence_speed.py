@@ -23,12 +23,15 @@ def main() -> None:
     parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2, 3, 4], help="Random seeds for testing")
     parser.add_argument("--evals", type=int, default=60, help="Maximum function evaluations per run")
     parser.add_argument("--out-dir", default="outputs/speed_benchmark", help="Output directory for speed report & plots")
+    parser.add_argument("--quick", action="store_true", help="Quick mode (1 training step per evaluation)")
+    parser.add_argument("--n-steps", type=int, default=1200, help="PINN training steps per evaluation (default: 1200)")
 
     args = parser.parse_args()
+    n_steps = 1 if args.quick else args.n_steps
 
     print(f"\n{'='*75}")
     print(f"TESTING OPTIMIZATION CONVERGENCE SPEED ON '{args.benchmark.upper()}'")
-    print(f"Seeds: {args.seeds} | Max Evals/Run: {args.evals}")
+    print(f"Seeds: {args.seeds} | Max Evals/Run: {args.evals} | Steps/Eval: {n_steps}")
     print(f"{'='*75}\n")
 
     results = run_full_convergence_speed_benchmark(
@@ -36,6 +39,7 @@ def main() -> None:
         seeds=args.seeds,
         max_evals=args.evals,
         output_dir=args.out_dir,
+        n_steps=n_steps,
     )
 
     print(f"\n{'='*75}")

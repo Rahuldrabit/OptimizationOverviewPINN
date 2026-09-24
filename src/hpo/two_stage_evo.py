@@ -19,10 +19,12 @@ try:
     from ..utils import ensure_dir, save_json
     from ..training.pinn_trainer import TrainConfig, train_pinn
     from .search_space import SearchSpace, decode_solution
+    from .fuzzy_controller import compute_population_diversity
 except (ImportError, ValueError):
     from utils import ensure_dir, save_json
     from training.pinn_trainer import TrainConfig, train_pinn
     from hpo.search_space import SearchSpace, decode_solution
+    from hpo.fuzzy_controller import compute_population_diversity
 
 
 def _two_stage_evo_numpy(
@@ -36,12 +38,11 @@ def _two_stage_evo_numpy(
     mutation_factor: float = 0.5,
     crossover_rate: float = 0.7,
     seed: int = 42,
-) -> tuple[np.ndarray, float, list[float]]:
+) -> tuple[np.ndarray, float, list[float], list[dict[str, Any]]]:
     """Execute Two-Stage Evolutionary Strategy under fixed evaluation budget."""
     rng = np.random.default_rng(seed)
     dim = len(lb)
     stage1_eval_budget = int(max_evals * stage1_ratio)
-    history: list[float] = []
 
     # -------------------------------------------------------------
     # STAGE 1: Coarse Evolutionary Exploration (Differential Evolution)
@@ -56,11 +57,17 @@ def _two_stage_evo_numpy(
         fit = eval_func(pop[i])
         fitness[i] = fit
         eval_count += 1
-        history.append(float(np.min(fitness[:eval_count])))
 
     best_idx = int(np.argmin(fitness[:max(1, eval_count)]))
     best_x = pop[best_idx].copy()
     best_fit = fitness[best_idx]
+
+    step_idx = 0
+    history: list[float] = [float(best_fit)]
+    diversity_history: list[dict[str, Any]] = [{
+        "iteration": 0,
+        "diversity": compute_population_diversity(pop, lb, ub),
+    }]
 
     while eval_count < stage1_eval_budget and eval_count < max_evals:
         for i in range(pop_size):
@@ -93,7 +100,12 @@ def _two_stage_evo_numpy(
                     best_fit = fit
                     best_x = trial.copy()
 
-            history.append(float(best_fit))
+        step_idx += 1
+        history.append(float(best_fit))
+        diversity_history.append({
+            "iteration": step_idx,
+            "diversity": compute_population_diversity(pop, lb, ub),
+        })
 
     # -------------------------------------------------------------
     # STAGE 2: Fine Refinement / Exploitation on Top-K Elite Candidates
@@ -123,9 +135,14 @@ def _two_stage_evo_numpy(
                     best_fit = fit
                     best_x = perturbed.copy()
 
-            history.append(float(best_fit))
+        step_idx += 1
+        history.append(float(best_fit))
+        diversity_history.append({
+            "iteration": step_idx,
+            "diversity": compute_population_diversity(np.array(elite_pool), lb, ub),
+        })
 
-    return best_x, float(best_fit), history
+    return best_x, float(best_fit), history, diversity_history
 
 
 def run_two_stage_evo(*args: Any, **kwargs: Any) -> Any:
@@ -137,7 +154,7 @@ def run_two_stage_evo(*args: Any, **kwargs: Any) -> Any:
         max_evals = kwargs.get("max_evals", 60)
         seed = kwargs.get("seed", 42)
         lb, ub = space.get_bounds()
-        best_x, best_fit, _ = _two_stage_evo_numpy(lb, ub, tracker.evaluate, max_evals, seed=seed)
+        best_x, best_fit, _, _ = _two_stage_evo_numpy(lb, ub, tracker.evaluate, max_evals, seed=seed)
         return best_x, best_fit
 
     # Caller style 2: run_two_stage_evo(output_dir, benchmark_type, seed=..., max_evals=..., n_steps=...)
@@ -156,11 +173,12 @@ def run_two_stage_evo(*args: Any, **kwargs: Any) -> Any:
         m = train_pinn(cfg)
         return float(m["val_rel_l2"])
 
-    best_x, best_fit, history = _two_stage_evo_numpy(lb, ub, eval_fn, max_evals=max_evals, seed=seed)
+    best_x, best_fit, history, diversity_history = _two_stage_evo_numpy(lb, ub, eval_fn, max_evals=max_evals, seed=seed)
 
     best_cfg = decode_solution(best_x, space, base)
     best_metrics = train_pinn(best_cfg)
     best_metrics["history"] = history
+    best_metrics["diversity_history"] = diversity_history
     best_metrics["optimizer_name"] = "Two-Stage Evo (Buzaev 2026)"
 
     ensure_dir(out_dir)

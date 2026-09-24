@@ -95,7 +95,7 @@ def generate_all_plots(results: dict[str, Any], output_dir: str) -> dict[str, st
         ax.set_xlabel("Iteration / Epoch", fontsize=11)
         ax.set_ylabel("Validation Relative L2 Error", fontsize=11)
         ax.grid(True, which="both", linestyle=":", alpha=0.6)
-        ax.legend(fontsize=8, loc="upper right")
+        ax.legend(fontsize=7, loc="upper right", ncol=2, framealpha=0.85)
 
     # Hide extra empty subplots
     for idx in range(n_bmarks, rows * cols):
@@ -133,7 +133,7 @@ def generate_all_plots(results: dict[str, Any], output_dir: str) -> dict[str, st
         ax.set_xlabel("Generation / Iteration", fontsize=11)
         ax.set_ylabel("Normalized Diversity (0=converged, 1=max spread)", fontsize=10)
         ax.grid(True, linestyle=":", alpha=0.6)
-        ax.legend(fontsize=8, loc="upper right")
+        ax.legend(fontsize=7, loc="upper right", ncol=2, framealpha=0.85)
 
     for idx in range(n_bmarks, rows * cols):
         r, c = divmod(idx, cols)
@@ -154,8 +154,8 @@ def generate_all_plots(results: dict[str, Any], output_dir: str) -> dict[str, st
     width = 0.8 / len(benchmarks)
 
     for i, bmark in enumerate(benchmarks):
-        means = [summary[bmark][alg]["mean_rel_l2"] for alg in algorithms if alg in summary[bmark]]
-        stds = [summary[bmark][alg]["std_rel_l2"] for alg in algorithms if alg in summary[bmark]]
+        means = [summary[bmark][alg]["mean_rel_l2"] if alg in summary[bmark] else np.nan for alg in algorithms]
+        stds = [summary[bmark][alg]["std_rel_l2"] if alg in summary[bmark] else 0.0 for alg in algorithms]
         offset = (i - len(benchmarks) / 2 + 0.5) * width
         ax.bar(x_indices + offset, means, yerr=stds, width=width, label=f"Benchmark: {bmark}", capsize=3, alpha=0.85)
 
@@ -203,10 +203,18 @@ def generate_all_plots(results: dict[str, Any], output_dir: str) -> dict[str, st
     min_t, max_t = min(all_times), max(all_times)
     min_div, max_div = (min(all_diversities), max(all_diversities)) if all_diversities else (0.0, 1.0)
 
-    # Select top 5 algorithms for clarity in radar chart
-    top_algs = list(rankings.keys())[:6]
+    # Select top performers, ensuring novel algorithms are included for direct comparison
+    selected_algs = []
+    for key_novel in ["F-MAGSO (Novel)", "PDE-Robust-DE"]:
+        if key_novel in rankings and key_novel not in selected_algs:
+            selected_algs.append(key_novel)
+    for alg in rankings.keys():
+        if alg not in selected_algs:
+            selected_algs.append(alg)
+        if len(selected_algs) >= 6:
+            break
 
-    for alg in top_algs:
+    for alg in selected_algs:
         # Accuracy score in [0.2, 1.0]
         acc_score = 1.0 - 0.8 * (rankings[alg]["overall_mean_rel_l2"] - min_err) / (max_err - min_err + 1e-12)
         # Speed score in [0.2, 1.0]

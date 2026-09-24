@@ -219,6 +219,32 @@ Key empirical findings:
     \item \textbf{Multimodal Reliability:} The **ACO-GA Hybrid** and **Fuzzy-PSO** achieve near-zero cross-seed variance ($\sigma \approx 5.20 \times 10^{-18}$), avoiding the premature local basin traps that afflicted the baseline ($\sigma = 1.74 \times 10^{-3}$).
 \end{itemize}
 
+\subsection{Population Diversity \& Search Exploration Dynamics}
+Figure~\ref{fig:diversity} illustrates measured population diversity decay $D(t)$ generation-by-generation across all 13 algorithms. While static baselines exhibit premature diversity collapse (driving them into suboptimal local minima), our fuzzy-guided controller and JADE-adaptive mechanics maintain elevated exploratory entropy during early iterations before steadily transitioning to fine-grained exploitation.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/diversity_exploration_trajectories.png}
+\caption{Generation-by-generation population/swarm/archive diversity trajectories across physical benchmarks ($0 = \text{converged}$, $1 = \text{maximal dispersion}$). Continuous adaptive mechanisms maintain healthy diversity across early epochs, avoiding premature stagnation.}
+\label{fig:diversity}
+\end{figure*}
+
+\subsection{Systematic Ablation Analysis}
+Table~\ref{tab:ablation_results} and Figure~\ref{fig:ablation_summary} present the results of our systematic ablation studies dissecting:
+(1) F-MAGSO architectural components (FLC diversity feedback, GSA attraction forces, GA schema crossover, and multi-stage scheduling);
+(2) PDE-Robust-DE mechanics (JADE adaptive scaling vs. static $F/\text{CR}$, and bounce-back boundary handling);
+(3) Closed-loop Mamdani fuzzy dynamic adaptation across classical algorithms (PSO, GA, ACO); and
+(4) Hybrid synergistic interaction compared against isolated constituent optimizers.
+
+\input{tables/table_ablation.tex}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/comprehensive_ablation_summary.png}
+\caption{Comprehensive 4-panel ablation summary. (A) Removing any component from F-MAGSO leads to significant performance degradation, with the fuzzy diversity controller and gravitational macro-attraction providing the largest gains. (B) PDE-Robust-DE requires adaptive parameter scaling and bounce-back constraints to avoid boundary trapping. (C) Fuzzy closed-loop dynamic adaptation consistently reduces validation error across PSO, GA, and ACO. (D) Hybrid synergies consistently outperform isolated constituent optimizers.}
+\label{fig:ablation_summary}
+\end{figure*}
+
 ---
 
 \section{Guidelines for Computational Practitioners}
