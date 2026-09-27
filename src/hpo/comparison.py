@@ -57,7 +57,6 @@ class ExperimentConfig:
         "GA", "PSO", "ACO", "GSA",
         "Fuzzy-GA", "Fuzzy-PSO", "Fuzzy-ACO",
         "GA-PSO Hybrid", "PSO-GSA Hybrid", "ACO-GA Hybrid",
-        "F-MAGSO",
         "PDE-Robust-DE",
         "Two-Stage Evo (Buzaev 2026)"
     ])

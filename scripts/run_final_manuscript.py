@@ -1,8 +1,8 @@
 """Unified Master Execution Suite for PINN Hyperparameter Optimization Manuscript.
 
 Executes the complete experimental pipeline in one command:
-1. Multi-PDE Benchmark Grid (Baselines, Fuzzy variants, Hybrids, F-MAGSO, and PDE-Robust-DE).
-2. Systematic Ablation Studies (F-MAGSO components, PDE-Robust-DE mechanics, Fuzzy adaptations, Hybrid synergies).
+1. Multi-PDE Benchmark Grid (baselines, fuzzy variants, hybrids, and PDE-Robust-DE).
+2. Systematic Ablation Studies (PDE-Robust-DE mechanics, fuzzy adaptations, and hybrid comparisons).
 3. Publication Figure Generation (Convergence trajectories, radar charts, rankings heatmap, boxplots).
 4. Automated LaTeX Tables Export (Rankings, Head-to-Head, Speed, and Ablation tables).
 5. Comprehensive Final Markdown Report.
@@ -37,7 +37,6 @@ from hpo.report_generator import generate_all_plots, generate_markdown_report
 from utils import ensure_dir, save_json
 
 from scripts.run_ablation import (
-    run_f_magso_ablation,
     run_pde_robust_de_ablation,
     run_fuzzy_ablation,
     run_hybrids_ablation,
@@ -70,7 +69,6 @@ def export_ablation_latex_table(ablation_data: dict[str, Any], out_file: str) ->
     ]
 
     group_labels = {
-        "f_magso": "F-MAGSO Component Ablation",
         "pde_robust_de": "PDE-Robust-DE Mechanics",
         "fuzzy": "Fuzzy Closed-Loop Adaptation",
         "hybrids": "Hybrid Synergy Analysis",
@@ -191,14 +189,13 @@ def main() -> None:
     grid_results = None
     if not args.skip_grid:
         print("\n" + "#" * 80)
-        print("STAGE 1: COMPREHENSIVE BENCHMARK GRID (13 OPTIMIZATION ALGORITHMS)")
+        print("STAGE 1: CONTROLLED BENCHMARK GRID")
         print("#" * 80 + "\n")
 
         all_algorithms = [
             "GA", "PSO", "ACO", "GSA",
             "Fuzzy-GA", "Fuzzy-PSO", "Fuzzy-ACO",
             "GA-PSO Hybrid", "PSO-GSA Hybrid", "ACO-GA Hybrid",
-            "F-MAGSO",
             "PDE-Robust-DE",
             "Two-Stage Evo (Buzaev 2026)",
         ]
@@ -251,19 +248,8 @@ def main() -> None:
         primary_ablation_bmark = args.ablation_benchmarks[0]
         ablation_seed = seeds[0]
 
-        # 1. F-MAGSO Component Ablation
-        print("\n[1/4] Running F-MAGSO Component Ablation...")
-        f_magso_res = run_f_magso_ablation(
-            primary_ablation_bmark, ablation_seed, args.quick, n_steps, ablation_dir, resume=resume
-        )
-        print_summary_table("F-MAGSO Architectural Components", f_magso_res)
-        ablation_results["f_magso"] = {
-            k: {"val_rel_l2": v["val_rel_l2"], "runtime_sec": v["runtime_sec"]}
-            for k, v in f_magso_res.items()
-        }
-
-        # 2. PDE-Robust-DE Mechanics Ablation
-        print("\n[2/4] Running PDE-Robust-DE Mechanics Ablation...")
+        # 1. PDE-Robust-DE Mechanics Ablation
+        print("\n[1/3] Running PDE-Robust-DE Mechanics Ablation...")
         pde_de_res = run_pde_robust_de_ablation(
             primary_ablation_bmark, ablation_seed, args.quick, n_steps, ablation_dir, resume=resume
         )
@@ -273,8 +259,8 @@ def main() -> None:
             for k, v in pde_de_res.items()
         }
 
-        # 3. Fuzzy Closed-Loop Dynamic Adaptation Ablation
-        print("\n[3/4] Running Fuzzy Dynamic Adaptation vs Static Baselines...")
+        # 2. Fuzzy Closed-Loop Dynamic Adaptation Ablation
+        print("\n[2/3] Running Fuzzy Dynamic Adaptation vs Static Baselines...")
         fuzzy_res = run_fuzzy_ablation(
             primary_ablation_bmark, ablation_seed, args.quick, n_steps, ablation_dir, resume=resume
         )
@@ -284,8 +270,8 @@ def main() -> None:
             for k, v in fuzzy_res.items()
         }
 
-        # 4. Hybrid Synergy Ablation
-        print("\n[4/4] Running Hybrid Synergy Analysis vs Constituent Standalones...")
+        # 3. Hybrid Synergy Ablation
+        print("\n[3/3] Running Hybrid Synergy Analysis vs Constituent Standalones...")
         hybrid_res = run_hybrids_ablation(
             primary_ablation_bmark, ablation_seed, args.quick, n_steps, ablation_dir, resume=resume
         )
@@ -317,7 +303,7 @@ def main() -> None:
     # =========================================================================
     if not args.skip_speed:
         print("\n" + "#" * 80)
-        print("STAGE 2.5: HIGH-RESOLUTION CONVERGENCE SPEED BENCHMARK (13 ALGORITHMS)")
+        print("STAGE 2.5: CONTROLLED CONVERGENCE SPEED BENCHMARK")
         print("#" * 80 + "\n")
         speed_dir = os.path.join(base_out, "speed_benchmark")
         ensure_dir(speed_dir)
@@ -329,6 +315,10 @@ def main() -> None:
             max_evals=speed_evals,
             output_dir=speed_dir,
             n_steps=1 if args.quick else n_steps,
+            algorithms=[
+                "PDE-Robust-DE", "GA", "PSO", "ACO", "GSA",
+                "Two-Stage Evo (Buzaev 2026)",
+            ],
         )
     else:
         print("\n[!] Skipping Stage 2.5 (Convergence Speed Benchmark) as requested.")

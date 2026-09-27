@@ -603,13 +603,13 @@ def run_full_convergence_speed_benchmark(
     max_evals: int = 60,
     output_dir: str = "outputs/speed_benchmark",
     n_steps: int = 1200,
+    algorithms: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Execute rigorous convergence speed testing across all 12 algorithms."""
+    """Execute convergence testing with an identical evaluation cap per algorithm."""
     ensure_dir(output_dir)
-    algorithms = [
+    algorithms = algorithms or [
         "Two-Stage Evo (Buzaev 2026)",
         "PDE-Robust-DE",
-        "F-MAGSO",
         "PSO", "Fuzzy-PSO", "PSO-GSA Hybrid",
         "GA-PSO Hybrid", "GA", "Fuzzy-GA",
         "ACO", "Fuzzy-ACO", "ACO-GA Hybrid", "GSA"
@@ -678,8 +678,10 @@ def run_full_convergence_speed_benchmark(
             "benchmark_type": benchmark_type,
             "seeds": seeds,
             "max_evals": max_evals,
+            "algorithms": algorithms,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         },
+        "raw_runs": all_results,
         "aggregated": aggregated,
         "speed_ranking": ranked_algs,
     }

@@ -40,7 +40,7 @@ def export_ranking_latex_table(results: dict, out_file: str) -> None:
     )
 
     for rank, (raw_name, stats) in enumerate(sorted_rankings, start=1):
-        alg_name = "F-MAGSO" if "F-MAGSO" in raw_name else raw_name
+        alg_name = raw_name
 
         # Categorize appropriately
         if "Hybrid" in alg_name:
@@ -49,7 +49,7 @@ def export_ranking_latex_table(results: dict, out_file: str) -> None:
             cat = "Fuzzy"
         elif "Buzaev" in alg_name:
             cat = "Baseline"
-        elif alg_name in ["F-MAGSO", "PDE-Robust-DE", "OmniPINN-Opt"]:
+        elif alg_name in ["PDE-Robust-DE", "OmniPINN-Opt"]:
             cat = "Proposed"
         else:
             cat = stats.get("category", "Standalone")
@@ -61,7 +61,7 @@ def export_ranking_latex_table(results: dict, out_file: str) -> None:
 
         # Highlight top 3 and baseline
         is_baseline = "Buzaev" in alg_name
-        is_proposed = alg_name in ["F-MAGSO", "PDE-Robust-DE", "OmniPINN-Opt"]
+        is_proposed = alg_name in ["PDE-Robust-DE", "OmniPINN-Opt"]
 
         if rank <= 3:
             alg_str = rf"\textbf{{{alg_name}}}"
@@ -104,7 +104,6 @@ def export_speed_latex_table(out_file: str) -> None:
         ("PSO", "Standalone", "19.2", "32.0", "0.0186", "1.30", "0.03s"),
         ("GA", "Standalone", "21.4", "34.2", "0.0178", "1.44", "0.03s"),
         ("PSO-GSA Hybrid", "Hybrid", "21.8", "35.6", "0.0184", "1.31", "0.03s"),
-        ("F-MAGSO", "Hybrid Swarm", "28.6", "29.7", "0.0181", "1.46", "0.05s"),
         ("Fuzzy-GA", "Fuzzy", "31.2", "43.5", "0.0177", "1.73", "0.03s"),
         ("ACO", "Standalone", "32.2", "45.3", "0.0177", "1.73", "0.04s"),
         ("ACO-GA Hybrid", "Hybrid", "32.2", "45.3", "0.0177", "1.73", "0.04s"),
@@ -146,16 +145,16 @@ def export_head_to_head_latex_table(out_file: str) -> None:
         r"\caption{Head-to-head comparison between SOTA Two-Stage Evolutionary Strategy (Buzaev et al., 2026) and our proposed continuous adaptive algorithms.}",
         r"\label{tab:baseline_head_to_head}",
         r"\small",
-        r"\begin{tabular}{lcccc}",
+        r"\begin{tabular}{lcc}",
         r"\toprule",
-        r"\textbf{Metric} & \textbf{Two-Stage Evo (2026)} & \textbf{PDE-Robust-DE (Ours)} & \textbf{F-MAGSO (Ours)} & \textbf{Fuzzy-PSO (Ours)} \\",
+        r"\textbf{Metric} & \textbf{Two-Stage Evo (2026)} & \textbf{PDE-Robust-DE (Ours)} \\",
         r"\midrule",
-        r"Final Relative $L_2$ Error & 0.01153 & \textbf{0.00535} (2.1$\times$ lower) & \textbf{0.00438} (2.6$\times$ lower) & \textbf{0.00266} (4.3$\times$ lower) \\",
-        r"Evals to Error $< 0.01$ & 33.0 evals & \textbf{28.8 evals} (Faster) & 29.7 evals & 32.0 evals \\",
-        r"Area Under Curve (AUC) & 1.57 & \textbf{1.33} & 1.46 & \textbf{1.24} (Best) \\",
-        r"Friedman Rank (4 PDEs) & 13.50 & \textbf{11.75} & \textbf{10.50} & \textbf{5.50} \\",
-        r"Cross-Seed Std. Dev. ($\sigma$) & $1.74 \times 10^{-3}$ & $\mathbf{5.20 \times 10^{-18}}$ & $8.53 \times 10^{-5}$ & $\mathbf{5.20 \times 10^{-18}}$ \\",
-        r"Adaptation Mechanism & Static Cutoff (70\%/30\%) & JADE Adaptive Scaling & Mamdani Diversity FLC & Mamdani Velocity FLC \\",
+        r"Final Relative $L_2$ Error & To be recomputed & To be recomputed \\",
+        r"Evals to Error $< 0.01$ & To be recomputed & To be recomputed \\",
+        r"Area Under Curve (AUC) & To be recomputed & To be recomputed \\",
+        r"Friedman Rank (4 PDEs) & To be recomputed & To be recomputed \\",
+        r"Cross-Seed Std. Dev. ($\sigma$) & To be recomputed & To be recomputed \\",
+        r"Adaptation Mechanism & Static Cutoff (70\%/30\%) & JADE Adaptive Scaling \\",
         r"\bottomrule",
         r"\end{tabular}",
         r"\end{table}",
