@@ -1,4 +1,4 @@
-"""Run tests to verify all benchmarks and HPO methods work correctly."""
+"""Run the focused PDE-Robust-DE test suite."""
 
 from __future__ import annotations
 
@@ -16,15 +16,12 @@ if str(project_root / "src") not in sys.path:
 
 def main():
     """Run all tests."""
-    
     # Discover and run tests
     loader = unittest.TestLoader()
     start_dir = project_root / "tests"
     suite = loader.discover(str(start_dir), pattern="test_*.py", top_level_dir=str(project_root))
-    
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
-    
     # Return appropriate exit code
     if result.wasSuccessful():
         print("\n[PASS] All tests passed successfully!")
@@ -36,4 +33,4 @@ def main():
 
 if __name__ == "__main__":
     exit_code = main()
-    sys.exit(exit_code)
+    sys.exit(exit_code)

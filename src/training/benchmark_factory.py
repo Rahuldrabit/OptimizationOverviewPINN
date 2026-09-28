@@ -14,7 +14,7 @@ except (ImportError, ValueError):
 
 
 def get_benchmark(benchmark_type: str):
-    """Factory function to get benchmark instance based on type."""
+    """Return one of the verified PDE-Robust-DE benchmark trainers."""
     try:
         if benchmark_type == "ode":
             from ..benchmarks.ode.exponential_decay import ExponentialDecayBenchmark
@@ -25,23 +25,11 @@ def get_benchmark(benchmark_type: str):
         elif benchmark_type == "heat":
             from ..benchmarks.heat.heat_equation import HeatEquationBenchmark
             return HeatEquationBenchmark()
-        elif benchmark_type == "allen_cahn":
-            from ..benchmarks.allen_cahn.allen_cahn import AllenCahnBenchmark
-            return AllenCahnBenchmark()
-        elif benchmark_type == "reaction_diffusion":
-            from ..benchmarks.reaction_diffusion.reaction_diffusion import ReactionDiffusionBenchmark
-            return ReactionDiffusionBenchmark()
-        elif benchmark_type == "navier_stokes":
-            from ..benchmarks.navier_stokes.navier_stokes_2d import NavierStokes2DBenchmark
-            return NavierStokes2DBenchmark()
         elif benchmark_type == "wave":
             from ..benchmarks.wave.wave_helmholtz import WaveEquationBenchmark
             return WaveEquationBenchmark()
-        elif benchmark_type == "helmholtz":
-            from ..benchmarks.wave.wave_helmholtz import HelmholtzBenchmark
-            return HelmholtzBenchmark()
         else:
-            raise ValueError(f"Unknown benchmark type: {benchmark_type}")
+            raise ValueError(f"Unsupported benchmark type: {benchmark_type}")
     except (ImportError, ValueError):
         if benchmark_type == "ode":
             from benchmarks.ode.exponential_decay import ExponentialDecayBenchmark
@@ -52,23 +40,11 @@ def get_benchmark(benchmark_type: str):
         elif benchmark_type == "heat":
             from benchmarks.heat.heat_equation import HeatEquationBenchmark
             return HeatEquationBenchmark()
-        elif benchmark_type == "allen_cahn":
-            from benchmarks.allen_cahn.allen_cahn import AllenCahnBenchmark
-            return AllenCahnBenchmark()
-        elif benchmark_type == "reaction_diffusion":
-            from benchmarks.reaction_diffusion.reaction_diffusion import ReactionDiffusionBenchmark
-            return ReactionDiffusionBenchmark()
-        elif benchmark_type == "navier_stokes":
-            from benchmarks.navier_stokes.navier_stokes_2d import NavierStokes2DBenchmark
-            return NavierStokes2DBenchmark()
         elif benchmark_type == "wave":
             from benchmarks.wave.wave_helmholtz import WaveEquationBenchmark
             return WaveEquationBenchmark()
-        elif benchmark_type == "helmholtz":
-            from benchmarks.wave.wave_helmholtz import HelmholtzBenchmark
-            return HelmholtzBenchmark()
         else:
-            raise ValueError(f"Unknown benchmark type: {benchmark_type}")
+            raise ValueError(f"Unsupported benchmark type: {benchmark_type}")
 
 
 
@@ -343,7 +319,7 @@ def train_pinn_heat(cfg, bench) -> dict[str, Any]:
     try:
         import torch
     except ImportError:
-        return train_pinn_placeholder(cfg, bench)
+        raise RuntimeError("PyTorch is required for PDE-Robust-DE training")
 
 
     device = torch.device("cuda" if cfg.device == "cuda" and torch.cuda.is_available() else "cpu")
@@ -420,7 +396,7 @@ def train_pinn_wave(cfg, bench) -> dict[str, Any]:
     try:
         import torch
     except ImportError:
-        return train_pinn_placeholder(cfg, bench)
+        raise RuntimeError("PyTorch is required for PDE-Robust-DE training")
 
     device = torch.device("cuda" if cfg.device == "cuda" and torch.cuda.is_available() else "cpu")
     try:
@@ -500,7 +476,7 @@ def train_pinn_burgers(cfg, bench) -> dict[str, Any]:
     try:
         import torch
     except ImportError:
-        return train_pinn_placeholder(cfg, bench)
+        raise RuntimeError("PyTorch is required for PDE-Robust-DE training")
 
 
     device = torch.device("cuda" if cfg.device == "cuda" and torch.cuda.is_available() else "cpu")
@@ -571,17 +547,3 @@ def train_pinn_burgers(cfg, bench) -> dict[str, Any]:
     rel_l2 = float(np.linalg.norm(err) / (np.linalg.norm(u_true) + 1e-12))
 
     return {"train_last_loss": last_loss, "val_mse": mse, "val_linf": linf, "val_rel_l2": rel_l2}
-
-
-def train_pinn_placeholder(cfg, bench) -> dict[str, Any]:
-    """Placeholder for PDE benchmarks that don't have a real trainer wired up yet
-    (allen_cahn, reaction_diffusion, navier_stokes, helmholtz). Returns fixed dummy
-    metrics that do NOT reflect real training - any results tagged with this note
-    must not be reported as genuine optimizer performance."""
-    return {
-        "train_last_loss": 0.1,
-        "val_mse": 0.01,
-        "val_linf": 0.1,
-        "val_rel_l2": 0.05,
-        "note": f"Placeholder metrics for {cfg.benchmark_type} benchmark - no real trainer implemented"
-    }

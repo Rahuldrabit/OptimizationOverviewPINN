@@ -29,7 +29,7 @@ Physics-Informed Neural Networks (PINNs) are sensitive to hyperparameter selecti
 \end{abstract}
 
 \begin{keyword}
-Physics-Informed Neural Networks (PINNs) \sep Hyperparameter Optimization \sep Evolutionary Algorithms \sep Ant Colony Optimization \sep Fuzzy Logic Controller \sep Differential Evolution
+Physics-Informed Neural Networks (PINNs) \sep Hyperparameter Optimization \sep Differential Evolution \sep PDE Solvers
 \end{keyword}
 
 \end{frontmatter}
@@ -50,7 +50,6 @@ In this paper, we address these foundational challenges through the following co
     \begin{itemize}
         \item \textbf{PDE-Robust-DE:} An adaptive scaling Differential Evolution algorithm that replaces static stage truncation with continuous JADE feedback.
     \end{itemize}
-    \item \textbf{Ground-Truth Cross-Validation with DEAP:} All core evolutionary operators are formally verified against the gold-standard DEAP framework \citep{deap2012}, eliminating implementation bias.
     \item \textbf{Statistical Evaluation:} We report seed-level confidence intervals, Friedman tests, paired Wilcoxon tests, and multiplicity-adjusted p-values rather than relying on rank ordering alone.
 \end{enumerate}
 
@@ -76,7 +75,7 @@ While the two-stage paradigm of \citet{buzaev2026evolutionary} attempts to balan
     \item \textbf{Loss of Population Diversity:} Discontinuously halting population-wide evolutionary operators discards population momentum and genetic diversity, preventing recovery if the elite pool is misidentified.
 \end{enumerate}
 
-To overcome these deficiencies, this work establishes the superiority of \textbf{continuous dynamic adaptation} and \textbf{multimodal pheromone hybridization}.
+This work evaluates continuous adaptive Differential Evolution under a controlled PINN training budget.
 
 ---
 
@@ -117,128 +116,17 @@ To eliminate the noise induced by static stage cutoffs, \textbf{PDE-Robust-DE} m
 \end{equation}
 where $S_F$ and $S_{CR}$ are the sets of successful mutation parameters that produced offspring superior to target vectors. By adapting $\mu_F$ dynamically, the optimizer naturally contracts step sizes in steep loss ravines and expands them across flat plateaus.
 
-\subsection{Proposed Method 2: ACO-GA Hybrid (Multimodal Gaussian Mixture Exploration)}
-PINN loss landscapes are inherently multimodal due to competing loss components and spectral frequency scales. Standard single-attractor optimizers collapse prematurely into the nearest local basin. To solve this, the **ACO-GA Hybrid** integrates two complementary search mechanisms:
-
-\subsubsection{Continuous Ant Colony Optimization ($\text{ACOR}$) Multi-Kernel Archive}
-Continuous Ant Colony Optimization \citep{socha2008ant} represents the search space as a multi-kernel **Gaussian Mixture Model (GMM)** over an archive of $K$ ranked solutions $\mathcal{A}$:
-\begin{equation}
-G_i(x) = \sum_{l=1}^K \omega_l g_l^i(x) = \sum_{l=1}^K \frac{\omega_l}{\sigma_l^i \sqrt{2\pi}} \exp\left(-\frac{(x - s_l^i)^2}{2 (\sigma_l^i)^2}\right)
-\end{equation}
-where the rank weights $\omega_l$ are given by:
-\begin{equation}
-\omega_l = \frac{1}{q K \sqrt{2\pi}} \exp\left(-\frac{(l-1)^2}{2 q^2 K^2}\right)
-\end{equation}
-and the standard deviation $\sigma_l^i$ is computed from the average distance between archive members:
-\begin{equation}
-\sigma_l^i = \zeta \sum_{e=1}^K \frac{|s_e^i - s_l^i|}{K - 1}
-\end{equation}
-This GMM distribution maintains multiple probabilistic peaks across the continuous physics parameters ($\eta, w_{\text{pde}}, w_{\text{ic}}$), preventing the population from collapsing into a single basin.
-
-\subsubsection{Genetic Algorithm (GA) Schema Recombination}
-The multiple elite basins discovered by $\text{ACOR}$ are directly injected into the Genetic Algorithm population. GA's tournament selection ($k=3$) and uniform/two-point crossover recombine discrete architectural schemas (depth $L$, width $W$, activation $\phi$, optimizer $\mathcal{O}$) across these diverse modes:
-\begin{equation}
-\text{Child} = \text{Crossover}(\mathbf{p}_1, \mathbf{p}_2) + \text{Mutation}(\text{bounded})
-\end{equation}
-This allows the algorithm to explore multiple physical modes simultaneously before exploiting the globally optimal architectural schema.
-
-\subsection{Proposed Method 3: Fuzzy-PSO (Dynamic Closed-Loop Diversity Control)}
-In **Fuzzy-PSO**, a Mamdani Fuzzy Logic Controller \citep{mamdani1975experiment} monitors real-time population diversity $D(t)$ and fitness improvement $\Delta F(t)$:
-\begin{equation}
-D(t) = \frac{1}{N \cdot L} \sum_{i=1}^N \|\mathbf{x}_i(t) - \bar{\mathbf{x}}(t)\|_2, \quad \Delta F(t) = \frac{f_{\text{best}}(t-1) - f_{\text{best}}(t)}{f_{\text{best}}(t-1) + \epsilon}
-\end{equation}
-The FLC dynamically adjusts the velocity parameters in the continuous update equation:
-\begin{equation}
-\mathbf{v}_i(t+1) = w(t) \mathbf{v}_i(t) + c_1(t) r_1 (\mathbf{p}_i - \mathbf{x}_i) + c_2(t) r_2 (\mathbf{g} - \mathbf{x}_i)
-\end{equation}
-ensuring automated balance between global exploration (high $w, c_1$) and rapid local exploitation (low $w$, high $c_2$).
-
-\subsection{Ground-Truth Implementation Verification with DEAP}
-To verify that our custom metaheuristic implementations are free from operator defects, our genetic operators were benchmarked against the standard DEAP framework \citep{deap2012}. Cross-validation confirmed consistent convergence to identical parameter basins.
-
 ---
 
 \section{Experimental Results \& Comparative Analysis}
 \label{sec:results}
 
-\subsection{Comprehensive Multi-PDE Performance Matrix}
-Table~\ref{tab:overall_ranking} presents the Friedman ranking matrix across all 13 evaluated algorithms on four benchmark PDEs over multiple random seeds.
-
-\input{tables/table_ranking.tex}
-
-\begin{figure*}[t]
-\centering
-\begin{subfigure}[b]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{figures/convergence_comparison.png}
-    \caption{Convergence trajectories across iterations.}
-    \label{fig:convergence}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{figures/algorithm_benchmark_heatmap.png}
-    \caption{Relative $L_2$ error heatmap across PDEs.}
-    \label{fig:heatmap}
-\end{subfigure}
-\caption{Comparative performance across all 13 evaluated algorithms. Adaptive and hybrid metaheuristics consistently achieve superior convergence depth and stability.}
-\label{fig:main_benchmark}
-\end{figure*}
-
-\subsection{Convergence Speed Analysis}
-Table~\ref{tab:convergence_speed} details convergence metrics on the ODE oscillator benchmark over 5 independent random seeds.
-
-\input{tables/table_speed.tex}
-
-\begin{figure*}[t]
-\centering
-\begin{subfigure}[b]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{figures/speed_convergence_trajectories.png}
-    \caption{High-resolution convergence speed trajectories.}
-    \label{fig:speed_traj}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{figures/radar_multi_criteria.png}
-    \caption{Multi-criteria trade-off radar profile.}
-    \label{fig:radar}
-\end{subfigure}
-\caption{Convergence velocity and multi-criteria trade-offs under the equal evaluation budget.}
-\label{fig:speed_analysis}
-\end{figure*}
-
-\subsection{Direct Comparison Against SOTA Baseline (Buzaev et al., 2026)}
-Table~\ref{tab:baseline_head_to_head} summarizes the head-to-head empirical comparison between the Buzaev et al. (2026) two-stage baseline and our proposed algorithms.
-
-\input{tables/table_baseline_comparison.tex}
-
-The controlled confirmation run supplies the final effect sizes and adjusted p-values. No algorithm is described as statistically superior until those tests are complete.
-\begin{itemize}
-    \item Final accuracy, convergence speed, and uncertainty are reported from raw seed-level confirmation results.
-    \item All comparisons use the same candidate-evaluation budget and verified PINN trainers.
-\end{itemize}
-
-\subsection{Population Diversity \& Search Exploration Dynamics}
-Figure~\ref{fig:diversity} illustrates measured population diversity decay $D(t)$ generation-by-generation across the controlled algorithm set. These trajectories are descriptive diagnostics and are not treated as evidence of superiority without paired statistical analysis.
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.95\textwidth]{figures/diversity_exploration_trajectories.png}
-\caption{Generation-by-generation population/swarm/archive diversity trajectories across physical benchmarks ($0 = \text{converged}$, $1 = \text{maximal dispersion}$). Continuous adaptive mechanisms maintain healthy diversity across early epochs, avoiding premature stagnation.}
-\label{fig:diversity}
-\end{figure*}
-
-\subsection{Systematic Ablation Analysis}
-Table~\ref{tab:ablation_results} and Figure~\ref{fig:ablation_summary} present the results of our systematic ablation studies dissecting:
-(1) PDE-Robust-DE mechanics (JADE adaptive scaling versus fixed $F/\text{CR}$ and boundary handling); and
-(2) controlled comparisons against standalone and two-stage baselines.
-
-\input{tables/table_ablation.tex}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.95\textwidth]{figures/comprehensive_ablation_summary.png}
-\caption{PDE-Robust-DE mechanics and controlled baseline comparisons.}
-\label{fig:ablation_summary}
-\end{figure*}
+\subsection{Experimental Protocol}
+The PDE-Robust-DE runner supports ODE, Heat, Burgers, and Wave benchmarks. Each candidate is trained with a real PyTorch PINN trainer, and every seed batch records the selected configuration, final relative $L_2$ error, and reproducibility metadata in JSON. The ten-seed confirmation command is:
+\begin{verbatim}
+python scripts/run_pde_robust_de.py heat --seeds 0 1 2 3 4 5 6 7 8 9
+\end{verbatim}
+The resulting summary reports the mean and sample standard deviation across seeds. Final manuscript tables should be generated from these summary files after the confirmation runs complete.
 
 ---
 
@@ -258,7 +146,7 @@ Based on our findings, we formulate the following operational recommendations:
 This paper evaluates PDE-Robust-DE as a single proposed optimizer against controlled baselines for PINN hyperparameter optimization. The final conclusion is based on equal-budget, ten-seed experiments and multiplicity-adjusted paired tests, rather than the earlier small pilot ranking. Future work will extend the same protocol to additional verified PDE trainers and Neural Operators.
 
 \section*{Reproducibility Statement}
-All code, benchmarks, random seeds, and plot generators are fully open-sourced in the accompanying repository with one-command reproduction via \texttt{python scripts/reproduce\_all.py}.
+All code, benchmarks, random seeds, and result summaries are open-sourced in the accompanying repository. The primary entry point is \texttt{python scripts/run\_pde\_robust\_de.py}.
 
 \bibliographystyle{elsarticle-harv}
 \bibliography{references}

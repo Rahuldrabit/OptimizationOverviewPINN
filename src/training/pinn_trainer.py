@@ -11,7 +11,6 @@ try:
         train_pinn_heat,
         train_pinn_burgers,
         train_pinn_wave,
-        train_pinn_placeholder,
     )
 except (ImportError, ValueError):
     from utils import set_seed, try_set_torch_seed
@@ -21,7 +20,6 @@ except (ImportError, ValueError):
         train_pinn_heat,
         train_pinn_burgers,
         train_pinn_wave,
-        train_pinn_placeholder,
     )
 
 
@@ -76,10 +74,10 @@ def train_pinn(cfg: TrainConfig) -> dict[str, Any]:
     elif cfg.benchmark_type == "wave":
         metrics = train_pinn_wave(cfg, bench)
     else:
-        # Real trainer not yet implemented for this PDE (allen_cahn, reaction_diffusion,
-        # navier_stokes, helmholtz) - falls back to fixed placeholder metrics. Any results
-        # for these benchmark types are NOT real and must not be reported as such.
-        metrics = train_pinn_placeholder(cfg, bench)
+        raise ValueError(
+            f"Unsupported benchmark '{cfg.benchmark_type}'. "
+            "Supported benchmarks: ode, heat, burgers, wave."
+        )
 
     import math
     for k in ["val_rel_l2", "val_mse", "val_linf", "train_last_loss"]:

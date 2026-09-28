@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pinn-hpo"
 version = "1.0.0"
-description = "Comprehensive Benchmark and Dynamic Adaptive Metaheuristics for Physics-Informed Neural Network (PINN) Hyperparameter Optimization"
+description = "PDE-Robust Differential Evolution for PINN hyperparameter optimization"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -26,10 +26,7 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=1.22.0",
-    "scipy>=1.8.0",
-    "matplotlib>=3.5.0",
     "torch>=2.0.0",
-    "deap>=1.4.0",
 ]
 
 [project.optional-dependencies]
