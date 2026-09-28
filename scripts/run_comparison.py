@@ -1,8 +1,9 @@
 """Controlled PDE-Robust-DE comparison and publication plot generation.
 
-The comparison is intentionally small and uses only methods needed to evaluate
-PDE-Robust-DE: adaptive DE, fixed-parameter DE, random search, and a repeated
-default PINN configuration. Every method receives the same candidate budget.
+The comparison uses only methods needed to evaluate PDE-Robust-DE: adaptive
+DE, fixed-parameter DE, random search, GA, PSO, GSA, ACO, a two-stage baseline,
+and a repeated default PINN configuration. Every method receives the same
+candidate budget.
 
 Example:
     python scripts/run_comparison.py --steps 1200 --evals 80
@@ -34,12 +35,20 @@ from hpo.search_space import SearchSpace, decode_solution
 from training.pinn_trainer import TrainConfig, train_pinn
 from utils import ensure_dir
 
-METHODS = ["PDE-Robust-DE", "Fixed DE", "Random Search", "Default PINN"]
+METHODS = [
+    "PDE-Robust-DE", "Fixed DE", "Random Search", "GA", "PSO", "GSA", "ACO",
+    "Two-Stage Baseline", "Default PINN",
+]
 COLORS = {
     "PDE-Robust-DE": "#0b6e4f",
     "Fixed DE": "#2f6690",
     "Random Search": "#d17a22",
     "Default PINN": "#777777",
+    "GA": "#8e44ad",
+    "PSO": "#c0392b",
+    "GSA": "#16a085",
+    "ACO": "#f39c12",
+    "Two-Stage Baseline": "#34495e",
 }
 
 
@@ -97,6 +106,136 @@ def _default_pinn(
     }
 
 
+def _generic_search(
+    benchmark: str, seed: int, evals: int, steps: int, method: str
+) -> dict[str, Any]:
+    """Run a lightweight baseline with exact candidate-level accounting."""
+    rng = np.random.default_rng(seed)
+    space = SearchSpace()
+    base = TrainConfig(seed=seed, n_steps=steps, benchmark_type=benchmark)
+    lower, upper = space.get_bounds()
+    dimension = len(lower)
+    history: list[float] = []
+    best_error = float("inf")
+    best_config: dict[str, Any] = {}
+    started = time.perf_counter()
+
+    def evaluate(candidate: np.ndarray) -> float:
+        nonlocal best_error, best_config
+        config = decode_solution(candidate, space, base)
+        metrics = train_pinn(config)
+        error = float(metrics["val_rel_l2"])
+        if error < best_error:
+            best_error = error
+            best_config = metrics["config"]
+        history.append(best_error)
+        return error
+
+    population_size = min(10, evals)
+    if population_size < 4:
+        raise ValueError("evals must be at least 4 for the population baselines")
+
+    if method == "GA":
+        population = lower + (upper - lower) * rng.random((population_size, dimension))
+        fitness = np.array([evaluate(candidate) for candidate in population])
+        while len(history) < evals:
+            children = [population[int(np.argmin(fitness))].copy()]
+            while len(children) < population_size:
+                indices = rng.choice(population_size, size=3, replace=False)
+                parent_a = population[indices[np.argmin(fitness[indices])]]
+                indices = rng.choice(population_size, size=3, replace=False)
+                parent_b = population[indices[np.argmin(fitness[indices])]]
+                point = int(rng.integers(1, dimension))
+                child = np.concatenate([parent_a[:point], parent_b[point:]])
+                mutation = rng.random(dimension) < 0.2
+                child[mutation] = lower[mutation] + (upper[mutation] - lower[mutation]) * rng.random(np.sum(mutation))
+                children.append(np.clip(child, lower, upper))
+            population = np.asarray(children)
+            for index, candidate in enumerate(population):
+                if len(history) >= evals:
+                    break
+                fitness[index] = evaluate(candidate)
+
+    elif method == "PSO":
+        positions = lower + (upper - lower) * rng.random((population_size, dimension))
+        velocities = rng.uniform(-0.25, 0.25, (population_size, dimension)) * (upper - lower)
+        personal = positions.copy()
+        personal_fit = np.array([evaluate(candidate) for candidate in positions])
+        best_index = int(np.argmin(personal_fit))
+        global_best = personal[best_index].copy()
+        while len(history) < evals:
+            r1 = rng.random((population_size, dimension))
+            r2 = rng.random((population_size, dimension))
+            velocities = 0.7 * velocities + 1.4 * r1 * (personal - positions) + 1.6 * r2 * (global_best - positions)
+            velocities = np.clip(velocities, -0.25 * (upper - lower), 0.25 * (upper - lower))
+            positions = np.clip(positions + velocities, lower, upper)
+            for index, candidate in enumerate(positions):
+                if len(history) >= evals:
+                    break
+                fitness = evaluate(candidate)
+                if fitness < personal_fit[index]:
+                    personal_fit[index] = fitness
+                    personal[index] = candidate.copy()
+            global_best = personal[int(np.argmin(personal_fit))].copy()
+
+    elif method == "GSA":
+        positions = lower + (upper - lower) * rng.random((population_size, dimension))
+        fitness = np.array([evaluate(candidate) for candidate in positions])
+        while len(history) < evals:
+            best_index = int(np.argmin(fitness))
+            attraction = positions[best_index] - positions
+            positions = np.clip(positions + rng.random(positions.shape) * 0.2 * attraction, lower, upper)
+            for index, candidate in enumerate(positions):
+                if len(history) >= evals:
+                    break
+                fitness[index] = evaluate(candidate)
+
+    elif method == "ACO":
+        archive = lower + (upper - lower) * rng.random((population_size, dimension))
+        fitness = np.array([evaluate(candidate) for candidate in archive])
+        while len(history) < evals:
+            order = np.argsort(fitness)
+            archive, fitness = archive[order], fitness[order]
+            weights = np.exp(-np.arange(population_size) / max(1.0, population_size * 0.35))
+            weights /= weights.sum()
+            spread = np.std(archive, axis=0) + 1e-8
+            candidates = []
+            for _ in range(population_size):
+                if len(history) >= evals:
+                    break
+                index = int(rng.choice(population_size, p=weights))
+                candidates.append(np.clip(rng.normal(archive[index], spread), lower, upper))
+            for candidate in candidates:
+                fitness_value = evaluate(candidate)
+                archive = np.vstack([archive, candidate])
+                fitness = np.append(fitness, fitness_value)
+            order = np.argsort(fitness)[:population_size]
+            archive, fitness = archive[order], fitness[order]
+
+    elif method == "Two-Stage Baseline":
+        stage_one = max(1, int(evals * 0.7))
+        candidates = lower + (upper - lower) * rng.random((population_size, dimension))
+        fitness = np.full(population_size, np.inf)
+        for index in range(stage_one):
+            candidate = candidates[index % population_size]
+            fitness[index % population_size] = evaluate(candidate)
+        elites = candidates[np.argsort(fitness)[:max(1, min(3, population_size))]]
+        while len(history) < evals:
+            center = elites[int(rng.integers(len(elites)))]
+            candidate = np.clip(center + rng.normal(0.0, 0.08, dimension) * (upper - lower), lower, upper)
+            evaluate(candidate)
+    else:
+        raise ValueError(f"Unknown generic method: {method}")
+
+    return {
+        "final_error": history[-1],
+        "history": history,
+        "n_evaluations": len(history),
+        "runtime_sec": time.perf_counter() - started,
+        "config": best_config,
+    }
+
+
 def _de_run(
     output_dir: str,
     benchmark: str,
@@ -150,6 +289,8 @@ def run_method(
         result = _random_search(output_dir, benchmark, seed, evals, steps)
     elif method == "Default PINN":
         result = _default_pinn(benchmark, seed, evals, steps)
+    elif method in {"GA", "PSO", "GSA", "ACO", "Two-Stage Baseline"}:
+        result = _generic_search(benchmark, seed, evals, steps, method)
     else:
         raise ValueError(f"Unknown comparison method: {method}")
     result["runtime_sec"] = time.perf_counter() - started

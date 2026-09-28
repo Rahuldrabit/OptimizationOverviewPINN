@@ -31,13 +31,13 @@ Use `--quick` for a short smoke test. Results are written to `outputs/pde_robust
 
 ## Controlled Comparison
 
-Compare PDE-Robust-DE with fixed-parameter DE, random search, and a repeated default PINN configuration using the same candidate budget:
+Compare PDE-Robust-DE with fixed-parameter DE, random search, GA, PSO, GSA, ACO, a two-stage 70/30 baseline, and a repeated default PINN configuration using the same candidate budget:
 
 ```powershell
 python scripts\run_comparison.py --steps 1200 --evals 80
 ```
 
-The comparison writes raw seed-level results and publication figures to `outputs/pde_robust_de_comparison/`, including final error distributions, evaluation-based convergence, an accuracy heatmap, success rate, runtime-accuracy trade-off, and a PDE-Robust-DE ablation.
+The comparison writes raw seed-level results and publication figures to `outputs/pde_robust_de_comparison/`, including final error distributions, evaluation-based convergence, an accuracy heatmap, success rate, runtime-accuracy trade-off, and a PDE-Robust-DE ablation. The two-stage method is a same-codebase reimplementation for controlled comparison; its published numbers must not be copied into the results.
 
 ## Project Layout
 
