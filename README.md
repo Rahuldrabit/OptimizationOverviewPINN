@@ -29,6 +29,16 @@ python scripts\run_pde_robust_de.py heat --seeds 0 1 2 3 4 5 6 7 8 9 --generatio
 
 Use `--quick` for a short smoke test. Results are written to `outputs/pde_robust_de/<benchmark>/`, including one JSON file per run and `pde_robust_de_summary.json` for a seed batch.
 
+## Controlled Comparison
+
+Compare PDE-Robust-DE with fixed-parameter DE, random search, and a repeated default PINN configuration using the same candidate budget:
+
+```powershell
+python scripts\run_comparison.py --steps 1200 --evals 80
+```
+
+The comparison writes raw seed-level results and publication figures to `outputs/pde_robust_de_comparison/`, including final error distributions, evaluation-based convergence, an accuracy heatmap, success rate, runtime-accuracy trade-off, and a PDE-Robust-DE ablation.
+
 ## Project Layout
 
 ```text
@@ -36,8 +46,8 @@ src/benchmarks/       Verified ODE, Heat, Burgers, and Wave benchmarks
 src/models/           PINN MLP model
 src/training/         PINN training and benchmark factory
 src/hpo/              PDE-Robust-DE and its search-space utilities
-scripts/              PDE-Robust-DE runner and test runner
-paper/                Manuscript and LaTeX tables
+scripts/              PDE-Robust-DE runner and controlled comparison runner
+paper/                Manuscript
 outputs/              Local experiment results, ignored by Git
 ```
 

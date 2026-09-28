@@ -32,6 +32,7 @@ class TestPDERobustWorkflow(unittest.TestCase):
             n_steps=2,
         )
         self.assertIn("val_rel_l2", metrics)
+        self.assertEqual(metrics["n_evaluations"], 8)
         self.assertTrue((output_dir / "pde_robust_de_best_metrics.json").exists())
 
 

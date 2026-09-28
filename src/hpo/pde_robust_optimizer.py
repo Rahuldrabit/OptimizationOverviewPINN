@@ -91,6 +91,7 @@ def run_pde_robust_opt(
     best_fit = fitnesses[best_idx]
     
     history = [best_fit]
+    eval_history = [float(value) for value in fitnesses]
     diversity_history = [{"generation": 0, "diversity": compute_population_diversity(pop, lb, ub)}]
 
     # Adaptive parameters (JADE style)
@@ -144,6 +145,7 @@ def run_pde_robust_opt(
             cfg = _decode_solution(trial, space, base)
             metrics = train_pinn(cfg)
             trial_fit = float(metrics["val_rel_l2"])
+            eval_history.append(trial_fit)
 
             # Selection
             if trial_fit < fitnesses[i]:
@@ -177,7 +179,9 @@ def run_pde_robust_opt(
 
     best_cfg = _decode_solution(best_ind, space, base)
     best_metrics = train_pinn(best_cfg)
-    best_metrics["history"] = history
+    best_metrics["history"] = eval_history
+    best_metrics["generation_history"] = history
+    best_metrics["n_evaluations"] = len(eval_history)
     best_metrics["diversity_history"] = diversity_history
     best_metrics["optimizer_name"] = "PDE-Robust-DE"
 
